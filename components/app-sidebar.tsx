@@ -137,17 +137,17 @@ export function AppSidebar() {
       // El Dashboard siempre es visible para usuarios autenticados
     },
     {
-      title: "Expresiones",
+      title: "Peticiones",
       icon: FileText,
-      href: "/dashboard/expresiones",
-      isActive: pathname === "/dashboard/expresiones" || pathname.startsWith("/dashboard/expresiones/"),
+      href: "/dashboard/peticiones",
+      isActive: pathname === "/dashboard/peticiones" || pathname.startsWith("/dashboard/peticiones/"),
       permission: { resource: "expressions", action: "view" },
     },
     {
-      title: "Referidos",
+      title: "Legisladores",
       icon: Landmark,
-      href: "/dashboard/comites",
-      isActive: pathname === "/dashboard/comites",
+      href: "/dashboard/legisladores",
+      isActive: pathname === "/dashboard/legisladores",
       permission: { resource: "committees", action: "view" },
     },
     {
@@ -232,7 +232,7 @@ export function AppSidebar() {
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center gap-2">
           <Image
-            src="/images/logo.png"
+            src="https://static.wixstatic.com/media/5be21a_136547e15b304e479c7c1d026166d5e9~mv2.png/v1/fill/w_182,h_182,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Logo%20OSL%20copy-01.png"
             alt="Logo Oficina de Servicios Legislativos"
             width={50}
             height={50}
@@ -240,7 +240,7 @@ export function AppSidebar() {
           />
           <div className="flex flex-col">
             <span className="text-lg font-bold">OSL</span>
-            <span className="text-xs text-muted-foreground">Oficina de Participación Ciudadana</span>
+            <span className="text-xs text-muted-foreground">Sistema de Consultoría Técnica</span>
           </div>
         </div>
       </div>

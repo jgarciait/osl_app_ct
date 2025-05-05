@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { createClientClient } from "@/lib/supabase-client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   ArrowUpIcon,
   ArrowDownIcon,
@@ -11,12 +10,11 @@ import {
   FileTextIcon,
   CheckCircleIcon,
   FilterIcon,
-  DownloadIcon,
   FileIcon,
+  DownloadIcon,
 } from "lucide-react"
 import Image from "next/image"
 import { SimpleBarChart } from "./simple-bar-chart"
-import { SimplePieChart } from "./simple-pie-chart"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 
@@ -47,15 +45,13 @@ export function DashboardCharts() {
     files: 0,
   })
   const [monthlyData, setMonthlyData] = useState([])
-  const [comisionesData, setComisionesData] = useState([])
-  const [temasData, setTemasData] = useState([])
 
   // Estado para los filtros
   const [availableYears, setAvailableYears] = useState([])
   const [selectedYear, setSelectedYear] = useState("all")
   const [selectedMonth, setSelectedMonth] = useState("all")
 
-  // Add this after the other state declarations
+  // Indicador de actualización en tiempo real
   const [realtimeIndicator, setRealtimeIndicator] = useState(false)
 
   // Efecto para cargar los años disponibles
@@ -63,78 +59,93 @@ export function DashboardCharts() {
     const fetchAvailableYears = async () => {
       try {
         const { data: years, error } = await supabase
-          .from("expresiones")
-          .select("ano")
-          .order("ano", { ascending: false })
+          .from("peticiones")
+          .select("year")
+          .order("year", { ascending: false })
 
         if (error) throw error
 
-        // Obtener años únicos
-        const uniqueYears = [...new Set(years.map((y) => y.ano))]
+        // Ensure we have data before proceeding
+        if (!years || years.length === 0) {
+          console.log("No years data available")
+          setAvailableYears([])
+          return
+        }
+
+        // Safely get unique years, handling potential undefined values
+        const uniqueYears = [...new Set(years.map((y) => y.year).filter(Boolean))]
         setAvailableYears(uniqueYears)
 
-        // Si no hay años seleccionados, usar el año actual
+        // If no years selected, use the current year or most recent
         if (uniqueYears.length > 0 && selectedYear === "all") {
           const currentYear = new Date().getFullYear()
-          // Si el año actual está disponible, seleccionarlo
+          // If the current year is available, select it
           if (uniqueYears.includes(currentYear)) {
             setSelectedYear(currentYear.toString())
           } else {
-            // Si no, seleccionar el año más reciente
+            // Otherwise, select the most recent year
             setSelectedYear(uniqueYears[0].toString())
           }
         }
       } catch (error) {
-        console.error("Error al cargar años disponibles:", error)
+        console.error("Error loading available years:", error)
+        setAvailableYears([])
       }
     }
 
     fetchAvailableYears()
-  }, [supabase])
+  }, [supabase, selectedYear])
 
-  // Move the fetchData function outside the useEffect but keep it inside the component
+  // Función para cargar datos
   const fetchData = async () => {
     setLoading(true)
     try {
-      // Construir la consulta base para estadísticas
-      let statsQuery = supabase.from("expresiones").select("id, archivado")
+      // Build the base query for statistics
+      let statsQuery = supabase.from("peticiones").select("id, archivado, year, mes")
 
-      // Aplicar filtros si están seleccionados
+      // Apply filters if selected
       if (selectedYear !== "all") {
-        statsQuery = statsQuery.eq("ano", Number.parseInt(selectedYear))
+        statsQuery = statsQuery.eq("year", Number.parseInt(selectedYear))
       }
 
       if (selectedMonth !== "all") {
         statsQuery = statsQuery.eq("mes", Number.parseInt(selectedMonth))
       }
 
-      // Ejecutar la consulta para obtener todas las expresiones filtradas
-      const { data: filteredExpressions, error: statsError } = await statsQuery
+      // Execute the query to get all filtered petitions
+      const { data: filteredPetitions, error: statsError } = await statsQuery
 
-      if (statsError) throw new Error("Error al obtener estadísticas")
+      if (statsError) throw new Error("Error getting statistics")
 
-      // Calcular estadísticas
-      const totalCount = filteredExpressions?.length || 0
-      const activeCount = filteredExpressions?.filter((exp) => !exp.archivado).length || 0
-      const archivedCount = filteredExpressions?.filter((exp) => exp.archivado).length || 0
+      // Calculate statistics
+      const totalCount = filteredPetitions?.length || 0
+      const activeCount = filteredPetitions?.filter((pet) => !pet.archivado).length || 0
+      const archivedCount = filteredPetitions?.filter((pet) => pet.archivado).length || 0
+
+      console.log("Datos recuperados:", {
+        total: totalCount,
+        filteredPetitions: filteredPetitions?.length,
+        query: selectedYear !== "all" ? `year=${selectedYear}` : "todos",
+      })
 
       setStats({
         total: totalCount,
         active: activeCount,
         archived: archivedCount,
+        files: stats.files, // Preserve existing files count
       })
 
-      // Obtener datos mensuales
-      let monthlyQuery = supabase.from("expresiones").select("id, mes, archivado")
+      // Update the monthly query to use consistent table and column names
+      let monthlyQuery = supabase.from("peticiones").select("id, mes, archivado, year")
 
-      // Aplicar filtro de año si está seleccionado
+      // Apply year filter if selected
       if (selectedYear !== "all") {
-        monthlyQuery = monthlyQuery.eq("ano", Number.parseInt(selectedYear))
+        monthlyQuery = monthlyQuery.eq("year", Number.parseInt(selectedYear))
       }
 
       // No aplicamos el filtro de mes aquí porque queremos ver todos los meses para la gráfica mensual
 
-      const { data: monthlyExpresiones, error: monthlyError } = await monthlyQuery
+      const { data: monthlyPeticiones, error: monthlyError } = await monthlyQuery
 
       if (monthlyError) throw new Error("Error al obtener datos mensuales")
 
@@ -151,14 +162,14 @@ export function DashboardCharts() {
           name: new Date(2023, index, 1).toLocaleString("es-ES", { month: "long" }), // Añadir propiedad name para SimpleBarChart
         }))
 
-      monthlyExpresiones?.forEach((exp) => {
-        if (exp.mes >= 1 && exp.mes <= 12) {
-          monthsData[exp.mes - 1].total += 1
-          monthsData[exp.mes - 1].value += 1 // Actualizar también la propiedad value
-          if (exp.archivado) {
-            monthsData[exp.mes - 1].archivadas += 1
+      monthlyPeticiones?.forEach((pet) => {
+        if (pet.mes >= 1 && pet.mes <= 12) {
+          monthsData[pet.mes - 1].total += 1
+          monthsData[pet.mes - 1].value += 1 // Actualizar también la propiedad value
+          if (pet.archivado) {
+            monthsData[pet.mes - 1].archivadas += 1
           } else {
-            monthsData[exp.mes - 1].activas += 1
+            monthsData[pet.mes - 1].activas += 1
           }
         }
       })
@@ -186,109 +197,6 @@ export function DashboardCharts() {
         setMonthlyData(processedData)
       }
 
-      // Obtener datos de comisiones con filtros
-      let comisionesQuery = supabase.from("expresiones").select(`
-      id,
-      expresion_comites(
-        comite_id,
-        comites(id, nombre, tipo)
-      )
-    `)
-
-      // Aplicar filtros
-      if (selectedYear !== "all") {
-        comisionesQuery = comisionesQuery.eq("ano", Number.parseInt(selectedYear))
-      }
-
-      if (selectedMonth !== "all") {
-        comisionesQuery = comisionesQuery.eq("mes", Number.parseInt(selectedMonth))
-      }
-
-      const { data: comisionesExpresiones, error: comisionesError } = await comisionesQuery
-
-      if (comisionesError) throw new Error("Error al obtener datos de comisiones")
-
-      // Procesar datos de comisiones
-      const comisionesCount = {}
-
-      comisionesExpresiones?.forEach((exp) => {
-        exp.expresion_comites?.forEach((item) => {
-          const comiteNombre = item.comites?.nombre || "Sin comisión"
-          const comiteTipo = item.comites?.tipo || "desconocido"
-          const key = `${comiteNombre} (${comiteTipo === "senado" ? "Senado" : "Cámara"})`
-
-          if (comisionesCount[key]) {
-            comisionesCount[key] += 1
-          } else {
-            comisionesCount[key] = 1
-          }
-        })
-      })
-
-      const comisionesArray = Object.entries(comisionesCount).map(([name, value]) => ({
-        name,
-        value,
-      }))
-
-      // Ordenar por cantidad y limitar a los 10 principales
-      comisionesArray.sort((a, b) => (b.value as number) - (a.value as number))
-      setComisionesData(comisionesArray.slice(0, 10))
-
-      // Obtener datos de temas con filtros
-      let temasQuery = supabase.from("expresiones").select("tema").not("tema", "is", null)
-
-      // Aplicar filtros
-      if (selectedYear !== "all") {
-        temasQuery = temasQuery.eq("ano", Number.parseInt(selectedYear))
-      }
-
-      if (selectedMonth !== "all") {
-        temasQuery = temasQuery.eq("mes", Number.parseInt(selectedMonth))
-      }
-
-      const { data: expresiones, error: temasError } = await temasQuery
-
-      if (temasError) throw new Error("Error al obtener datos de temas")
-
-      // Obtener los nombres de los temas
-      const temaIds = expresiones?.map((exp) => exp.tema).filter(Boolean)
-      const uniqueTemaIds = [...new Set(temaIds)]
-
-      // Obtener los detalles de los temas
-      const { data: temasData, error: temasDetailsError } = await supabase
-        .from("temas")
-        .select("id, nombre")
-        .in("id", uniqueTemaIds)
-
-      if (temasDetailsError) throw new Error("Error al obtener detalles de temas")
-
-      // Crear un mapa de id -> nombre para los temas
-      const temasMap = {}
-      temasData?.forEach((tema) => {
-        temasMap[tema.id] = tema.nombre
-      })
-
-      // Contar las expresiones por tema
-      const temasCount = {}
-      expresiones?.forEach((exp) => {
-        const temaNombre = temasMap[exp.tema] || "Sin tema"
-
-        if (temasCount[temaNombre]) {
-          temasCount[temaNombre] += 1
-        } else {
-          temasCount[temaNombre] = 1
-        }
-      })
-
-      const temasArray = Object.entries(temasCount).map(([name, value]) => ({
-        name,
-        value,
-      }))
-
-      // Ordenar por cantidad
-      temasArray.sort((a, b) => (b.value as number) - (a.value as number))
-      setTemasData(temasArray)
-
       // Obtener el conteo de archivos en el bucket "documentos"
       const { data: filesCount, error: filesError } = await supabase.rpc("get_storage_object_count", {
         bucket_name: "documentos",
@@ -314,15 +222,15 @@ export function DashboardCharts() {
   useEffect(() => {
     fetchData()
 
-    // Subscribe to real-time changes on the expresiones table
+    // Subscribe to real-time changes on the peticiones table
     const channel = supabase
-      .channel("dashboard-expresiones-changes")
+      .channel("dashboard-peticiones-changes")
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
-          table: "expresiones",
+          table: "peticiones",
         },
         async (payload) => {
           // Show real-time indicator
@@ -351,15 +259,15 @@ export function DashboardCharts() {
     setSelectedMonth("all")
   }
 
-  // Función para descargar datos como CSV
-  const downloadComisionesData = () => {
+  // Función para descargar datos mensuales como CSV
+  const downloadMonthlyData = () => {
     try {
       // Crear contenido CSV con BOM para Excel
       let csvContent = "\uFEFF" // BOM para Excel
-      csvContent += "Comisión,Expresiones\r\n"
+      csvContent += "Mes,Total Peticiones,Peticiones Activas,Peticiones Archivadas\r\n"
 
-      comisionesData.forEach((item) => {
-        csvContent += `"${item.name}",${item.value}\r\n`
+      monthlyData.forEach((item) => {
+        csvContent += `"${item.name}",${item.total},${item.activas},${item.archivadas}\r\n`
       })
 
       // Crear blob y enlace de descarga
@@ -369,7 +277,7 @@ export function DashboardCharts() {
 
       // Configurar y simular clic en el enlace
       link.setAttribute("href", url)
-      link.setAttribute("download", `comisiones-expresiones-${selectedYear !== "all" ? selectedYear : "todos"}.csv`)
+      link.setAttribute("download", `peticiones-mensuales-${selectedYear !== "all" ? selectedYear : "todos"}.csv`)
       link.style.visibility = "hidden"
       document.body.appendChild(link)
       link.click()
@@ -384,7 +292,7 @@ export function DashboardCharts() {
     <div className="space-y-4 sm:space-y-6">
       <div className="w-full">
         <Image
-          src="/images/capitol.jpg"
+          src="https://static.wixstatic.com/media/5be21a_ab4772ff1a594b63a7881b69207e1052~mv2.jpg/v1/fill/w_1905,h_945,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/5be21a_ab4772ff1a594b63a7881b69207e1052~mv2.jpg"
           alt="Capitolio de Puerto Rico"
           width={1920}
           height={100}
@@ -441,7 +349,7 @@ export function DashboardCharts() {
       <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2">
-            <CardTitle className="text-sm font-medium">Total Expresiones</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Peticiones</CardTitle>
             <FileTextIcon className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -457,12 +365,12 @@ export function DashboardCharts() {
             <p className="text-xs text-muted-foreground">
               {selectedYear !== "all" || selectedMonth !== "all" ? (
                 <>
-                  Expresiones filtradas
+                  Peticiones filtradas
                   {selectedYear !== "all" ? ` (${selectedYear})` : ""}
                   {selectedMonth !== "all" ? ` (${MONTHS.find((m) => m.value === selectedMonth)?.label})` : ""}
                 </>
               ) : (
-                "Todas las expresiones registradas"
+                "Todas las peticiones registradas"
               )}
             </p>
           </CardContent>
@@ -470,7 +378,7 @@ export function DashboardCharts() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2">
-            <CardTitle className="text-sm font-medium">Expresiones Activas</CardTitle>
+            <CardTitle className="text-sm font-medium">Peticiones Activas</CardTitle>
             <CheckCircleIcon className="h-5 w-5 sm:h-6 sm:w-6 text-green-500" />
           </CardHeader>
           <CardContent>
@@ -484,7 +392,7 @@ export function DashboardCharts() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2">
-            <CardTitle className="text-sm font-medium">Expresiones Archivadas</CardTitle>
+            <CardTitle className="text-sm font-medium">Peticiones Archivadas</CardTitle>
             <ArchiveIcon className="h-5 w-5 sm:h-6 sm:w-6 text-gray-500" />
           </CardHeader>
           <CardContent>
@@ -508,155 +416,37 @@ export function DashboardCharts() {
         </Card>
       </div>
 
-      <Tabs defaultValue="comisiones" className="w-full">
-        <TabsList className="w-full overflow-x-auto flex-nowrap">
-          <TabsTrigger value="comisiones" className="flex-1">
-            Por Comisión
-          </TabsTrigger>
-          <TabsTrigger value="mensual" className="flex-1">
-            Expresiones por Mes
-          </TabsTrigger>
-          <TabsTrigger value="temas" className="flex-1">
-            Por Tema
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="mensual">
-          <Card>
-            <CardContent className="px-1 sm:px-3 py-2 sm:py-3">
-              <CardDescription className="text-xs sm:text-sm mb-2">
-                Distribución mensual de expresiones ciudadanas.
-                {selectedYear !== "all" ? ` (${selectedYear})` : ""}
-              </CardDescription>
-              {loading ? (
-                <div className="flex h-[250px] sm:h-[350px] items-center justify-center">
-                  <p>Cargando datos...</p>
-                </div>
-              ) : monthlyData.length === 0 ? (
-                <div className="flex h-[250px] sm:h-[350px] items-center justify-center">
-                  <p>No hay datos disponibles para mostrar</p>
-                </div>
-              ) : (
-                <div>
-                  <div className="w-full h-[250px] sm:h-[350px] border border-gray-200 rounded-lg p-2 sm:p-4">
-                    <SimpleBarChart data={monthlyData} height={250} />
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="comisiones">
-          <Card>
-            <CardContent className="px-1 sm:px-3 py-2 sm:py-3 h-[400px]">
-              <CardDescription className="text-xs sm:text-sm mb-2">
-                Distribución de expresiones según las comisiones a las que fueron referidas
-                {selectedYear !== "all" ? ` (${selectedYear})` : ""}
-                {selectedMonth !== "all" ? ` - ${MONTHS.find((m) => m.value === selectedMonth)?.label}` : ""}
-              </CardDescription>
-              {loading ? (
-                <div className="flex h-full items-center justify-center">
-                  <p>Cargando datos...</p>
-                </div>
-              ) : comisionesData.length === 0 ? (
-                <div className="flex h-full items-center justify-center">
-                  <p>No hay datos disponibles para mostrar</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-auto md:h-full">
-                  <div className="h-[250px] sm:h-[320px] border border-gray-200 rounded-lg p-2 sm:p-4">
-                    <SimplePieChart
-                      data={comisionesData.length > 0 ? comisionesData : [{ name: "Sin datos", value: 1 }]}
-                    />
-                  </div>
-
-                  <div className="h-[250px] sm:h-[320px] overflow-auto border border-gray-200 rounded-lg w-full">
-                    <table className="min-w-full w-full">
-                      <thead className="bg-gray-50 sticky top-0 z-10 w-full">
-                        <tr className="w-full">
-                          <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-2 px-2 sm:px-4 w-3/4">
-                            REFERIDOS
-                          </th>
-                          <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider py-2 px-2 sm:px-4 w-1/4">
-                            <div className="flex items-center justify-end">
-                              <span className="mr-2">Expresiones</span>
-                              <button
-                                onClick={downloadComisionesData}
-                                className="text-gray-500 hover:text-gray-700 focus:outline-none"
-                                title="Descargar datos en CSV"
-                              >
-                                <DownloadIcon className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200 w-full">
-                        {comisionesData.map((item, index) => (
-                          <tr key={index} className={`${index % 2 === 0 ? "bg-white" : "bg-gray-50"} w-full`}>
-                            <td className="py-2 px-2 sm:px-4 text-xs sm:text-sm w-3/4">{item.name}</td>
-                            <td className="py-2 px-2 sm:px-4 text-xs sm:text-sm text-right w-1/4">{item.value}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="temas">
-          <Card>
-            <CardContent className="px-1 sm:px-3 py-2 sm:py-3 h-[400px] sm:h-[500px]">
-              <CardDescription className="text-xs sm:text-sm mb-2">
-                Distribución de expresiones según los temas asignados
-                {selectedYear !== "all" ? ` (${selectedYear})` : ""}
-                {selectedMonth !== "all" ? ` - ${MONTHS.find((m) => m.value === selectedMonth)?.label}` : ""}
-              </CardDescription>
-              {loading ? (
-                <div className="flex h-full items-center justify-center">
-                  <p>Cargando datos...</p>
-                </div>
-              ) : temasData.length === 0 ? (
-                <div className="flex h-full items-center justify-center">
-                  <p>No hay datos de temas disponibles</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-4 h-full">
-                  <div className="h-[95%] overflow-auto border border-gray-200 rounded-lg p-2 sm:p-4">
-                    <div className="h-full">
-                      <div className="space-y-2">
-                        {temasData.map((tema, index) => (
-                          <div key={index} className="flex items-center space-x-2">
-                            <div
-                              className="h-3 sm:h-4 rounded-sm"
-                              style={{
-                                width: `${Math.max(Math.min(((tema.value as number) / Math.max(...temasData.map((t) => t.value as number))) * 100, 100), 5)}%`,
-                                backgroundColor: `hsl(${(index * 25) % 360}, 70%, 50%)`,
-                              }}
-                            />
-                            <div className="flex justify-between w-full">
-                              <span
-                                className="text-xs sm:text-sm font-medium truncate max-w-[120px] sm:max-w-[200px]"
-                                title={tema.name as string}
-                              >
-                                {tema.name}
-                              </span>
-                              <span className="text-xs sm:text-sm font-medium text-gray-500">{tema.value}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {/* Gráfico de peticiones mensuales */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-lg">Peticiones por Mes</CardTitle>
+            <Button variant="outline" size="sm" onClick={downloadMonthlyData} className="h-8">
+              <DownloadIcon className="h-4 w-4 mr-1" />
+              Exportar CSV
+            </Button>
+          </div>
+          <CardDescription>
+            Distribución mensual de peticiones ciudadanas
+            {selectedYear !== "all" ? ` (${selectedYear})` : ""}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-1 sm:px-3 py-2 sm:py-3">
+          {loading ? (
+            <div className="flex h-[300px] sm:h-[400px] items-center justify-center">
+              <p>Cargando datos...</p>
+            </div>
+          ) : monthlyData.length === 0 ? (
+            <div className="flex h-[300px] sm:h-[400px] items-center justify-center">
+              <p>No hay datos disponibles para mostrar</p>
+            </div>
+          ) : (
+            <div className="w-full h-[300px] sm:h-[400px] border border-gray-200 rounded-lg p-2 sm:p-4">
+              <SimpleBarChart data={monthlyData} height={350} />
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

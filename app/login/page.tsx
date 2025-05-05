@@ -22,19 +22,13 @@ export default function LoginPage() {
       <div className="relative hidden h-full flex-col bg-muted p-10 text-white lg:flex dark:border-r">
         <div className="absolute inset-0 bg-[#1a365d]" />
         <div className="relative z-20 flex items-center text-lg font-medium">
-          <Image
-            src="/images/logo.png"
-            alt="Logo Oficina de Servicios Legislativos"
-            width={80}
-            height={80}
-            className="mr-4"
-          />
-          Sistema de Expresiones Ciudadanas
+          <Image src="https://static.wixstatic.com/media/5be21a_136547e15b304e479c7c1d026166d5e9~mv2.png/v1/fill/w_182,h_182,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Logo%20OSL%20copy-01.png" alt="OSL Logo" width={60} height={60} className="mr-4" />
+          Sistema de Consultoría Técnica
         </div>
         <div className="relative z-20 w-full pt-[50px] pb-[50px]">
           <Image
-            src="/images/capitol.jpg"
-            alt="Capitolio de Puerto Rico"
+            src="https://static.wixstatic.com/media/5be21a_3f47063a0cd84787b87628518e8fcc53~mv2.jpg/v1/fill/w_762,h_571,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/5be21a_3f47063a0cd84787b87628518e8fcc53~mv2.jpg"
+            alt="Imagen de Participación Ciudadana"
             width={1200}
             height={300}
             className="w-full h-[300px] object-cover rounded-lg shadow-lg"
@@ -44,24 +38,18 @@ export default function LoginPage() {
         <div className="relative z-20 mt-[30px]">
           <blockquote className="space-y-2">
             <p className="text-lg">
-              "Este sistema permite gestionar las expresiones ciudadanas y facilitar la integración de los ciudadanos en
-              los procesos legislativos."
+              "Sistema de gestión documental de opiniones legales, proyectos, informes, investigaciones, resoluciones,
+            mociones y otros productos técnicos."
             </p>
-            <footer className="text-sm">Oficina de Participación Ciudadana</footer>
           </blockquote>
         </div>
       </div>
       <div className="lg:p-8">
-        <div className="flex flex-col items-center mb-8">
-          <Image
-            src="https://static.wixstatic.com/media/5be21a_ecb3337d08fc4bb4be35f8b2b3cd6780~mv2.png/v1/fill/w_424,h_254,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Logo%20PC%202021-02.png"
-            alt="Logo Participación Ciudadana"
-            width={212}
-            height={127}
-            className="mx-auto"
-            priority
-          />
-        </div>
+          <div className="text-center mb-6">
+            <h1 className="text-[#14294b] font-bold text-xl mb-1">Oficina de Estudios Legislativos</h1>
+            <h1 className="text-[#14294b] font-bold text-xl mb-4">y Consultoría Técnica</h1>
+            <div className="w-16 h-1 bg-[#14294b] mx-auto rounded-full"></div>
+          </div>
         <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
           <div className="flex flex-col space-y-2 text-center">
             <h1 className="text-2xl font-semibold tracking-tight">Iniciar sesión</h1>
