@@ -245,7 +245,7 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 mb-8">
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
           {/* Filtro de año */}
@@ -332,140 +332,149 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
 
       {/* Tabla de peticiones */}
       <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-black">Asesor</TableHead>
-              <TableHead
-                className="cursor-pointer hover:bg-muted/50 text-black"
-                onClick={() => handleSort("num_peticion")}
-              >
-                Trabajo Asignado
-                {sortColumn === "num_peticion" && <span className="ml-2">{sortDirection === "asc" ? "↑" : "↓"}</span>}
-              </TableHead>
-              <TableHead className="text-black">Clasificación</TableHead>
-              <TableHead className="text-black">Legislador</TableHead>
-              <TableHead className="text-black">Tema</TableHead>
-              <TableHead className="text-black">Estatus</TableHead>
-              <TableHead className="text-black">Fecha Asignación</TableHead>
-              <TableHead className="text-black">Fecha Límite</TableHead>
-              <TableHead className="text-right text-black">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {groupByAsesor ? (
-              // Mostrar datos agrupados por asesor
-              Object.entries(groupedData).map(([asesor, peticiones]) => (
-                <React.Fragment key={asesor}>
-                  {/* Encabezado del grupo */}
-                  <TableRow className="bg-gray-800 font-medium text-white hover:bg-[#1d3658] transition-colors duration-200">
-                    <TableCell colSpan={9} className="py-2 text-white">
-                      {asesor} ({peticiones.length} peticiones)
-                    </TableCell>
-                  </TableRow>
-                  {/* Filas de peticiones */}
-                  {peticiones.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="h-12 text-center text-muted-foreground">
-                        No hay peticiones para este asesor.
+        <div>
+          <Table>
+            <TableHeader className="sticky top-0 bg-white z-10">
+              <TableRow>
+                <TableHead className="text-black">Asesor</TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-muted/50 text-black"
+                  onClick={() => handleSort("num_peticion")}
+                >
+                  Trabajo Asignado
+                  {sortColumn === "num_peticion" && <span className="ml-2">{sortDirection === "asc" ? "↑" : "↓"}</span>}
+                </TableHead>
+                <TableHead className="text-black">Clasificación</TableHead>
+                <TableHead className="text-black">Legislador</TableHead>
+                <TableHead className="text-black">Tema</TableHead>
+                <TableHead className="text-black">Estatus</TableHead>
+                <TableHead className="text-black">Fecha Asignación</TableHead>
+                <TableHead className="text-black">Fecha Límite</TableHead>
+                <TableHead className="text-right text-black">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {groupByAsesor ? (
+                // Mostrar datos agrupados por asesor
+                Object.entries(groupedData).map(([asesor, peticiones]) => (
+                  <React.Fragment key={asesor}>
+                    {/* Encabezado del grupo */}
+                    <TableRow className="bg-gray-800 font-medium text-white hover:bg-[#1d3658] transition-colors duration-200">
+                      <TableCell colSpan={9} className="py-2 text-white">
+                        {asesor} ({peticiones.length} peticiones)
                       </TableCell>
                     </TableRow>
-                  ) : (
-                    peticiones.map(renderTableRow)
-                  )}
-                </React.Fragment>
-              ))
-            ) : // Mostrar datos sin agrupar
-            sortedData.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} className="h-24 text-center">
-                  No se encontraron resultados.
-                </TableCell>
-              </TableRow>
-            ) : (
-              paginatedData.ungrouped.map(renderTableRow)
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Paginación */}
-      {!groupByAsesor && totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <p className="text-sm text-muted-foreground">Mostrar</p>
-            <Select
-              value={pageSize.toString()}
-              onValueChange={(value) => {
-                setPageSize(Number(value))
-                setCurrentPage(1) // Resetear a la primera página al cambiar el tamaño
-              }}
-            >
-              <SelectTrigger className="h-8 w-[70px]">
-                <SelectValue placeholder={pageSize} />
-              </SelectTrigger>
-              <SelectContent side="top">
-                {[5, 10, 20, 30, 40, 50].map((size) => (
-                  <SelectItem key={size} value={size.toString()}>
-                    {size}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">entradas por página</p>
-          </div>
-
-          <div className="text-sm text-muted-foreground">
-            Mostrando {paginatedData.ungrouped.length} de {sortedData.length} registros
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}>
-              <ChevronLeft className="h-4 w-4" />
-              <span className="sr-only">Página anterior</span>
-            </Button>
-            <div className="flex items-center space-x-1">
-              {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
-                let pageToShow
-                if (totalPages <= 5) {
-                  pageToShow = i + 1
-                } else {
-                  let startPage = Math.max(1, currentPage - 2)
-                  const endPage = Math.min(totalPages, startPage + 4)
-                  if (endPage === totalPages) {
-                    startPage = Math.max(1, endPage - 4)
-                  }
-                  pageToShow = startPage + i
-                }
-
-                if (pageToShow <= totalPages) {
-                  return (
-                    <Button
-                      key={pageToShow}
-                      variant={pageToShow === currentPage ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => goToPage(pageToShow)}
-                      className={pageToShow === currentPage ? "bg-[#1a365d] hover:bg-[#15294d]" : ""}
-                    >
-                      {pageToShow}
-                    </Button>
-                  )
-                }
-                return null
-              })}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronRight className="h-4 w-4" />
-              <span className="sr-only">Página siguiente</span>
-            </Button>
-          </div>
+                    {/* Filas de peticiones */}
+                    {peticiones.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="h-12 text-center text-muted-foreground">
+                          No hay peticiones para este asesor.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      peticiones.map(renderTableRow)
+                    )}
+                  </React.Fragment>
+                ))
+              ) : // Mostrar datos sin agrupar
+              sortedData.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="h-24 text-center">
+                    No se encontraron resultados.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                paginatedData.ungrouped.map(renderTableRow)
+              )}
+            </TableBody>
+          </Table>
         </div>
-      )}
+
+        {/* Paginación - siempre visible */}
+        {!groupByAsesor && (
+          <div className="flex items-center justify-between bg-white py-4 border-t sticky bottom-0">
+            <div className="flex items-center space-x-2">
+              <p className="text-sm text-muted-foreground">Mostrar</p>
+              <Select
+                value={pageSize.toString()}
+                onValueChange={(value) => {
+                  setPageSize(Number(value))
+                  setCurrentPage(1) // Resetear a la primera página al cambiar el tamaño
+                }}
+              >
+                <SelectTrigger className="h-8 w-[70px]">
+                  <SelectValue placeholder={pageSize} />
+                </SelectTrigger>
+                <SelectContent side="top">
+                  {[5, 10, 20, 30, 40, 50].map((size) => (
+                    <SelectItem key={size} value={size.toString()}>
+                      {size}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">entradas por página</p>
+            </div>
+
+            <div className="text-sm text-muted-foreground">
+              Mostrando {paginatedData.ungrouped.length} de {sortedData.length} registros
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => goToPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="sr-only">Página anterior</span>
+                </Button>
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
+                    let pageToShow
+                    if (totalPages <= 5) {
+                      pageToShow = i + 1
+                    } else {
+                      let startPage = Math.max(1, currentPage - 2)
+                      const endPage = Math.min(totalPages, startPage + 4)
+                      if (endPage === totalPages) {
+                        startPage = Math.max(1, endPage - 4)
+                      }
+                      pageToShow = startPage + i
+                    }
+
+                    if (pageToShow <= totalPages) {
+                      return (
+                        <Button
+                          key={pageToShow}
+                          variant={pageToShow === currentPage ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => goToPage(pageToShow)}
+                          className={pageToShow === currentPage ? "bg-[#1a365d] hover:bg-[#15294d]" : ""}
+                        >
+                          {pageToShow}
+                        </Button>
+                      )
+                    }
+                    return null
+                  })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => goToPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                  <span className="sr-only">Página siguiente</span>
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

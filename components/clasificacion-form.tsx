@@ -1,59 +1,64 @@
 "use client"
 
-import { useState } from "react"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import * as z from "zod"
+import { useState, useEffect } from "react"
+import { createClientClient } from "@/lib/supabase-client"
+import { useToast } from "@/components/ui/use-toast"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { useToast } from "@/components/ui/use-toast"
-import { createClientClient } from "@/lib/supabase-client"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardFooter } from "@/components/ui/card"
+import { Loader2 } from "lucide-react"
 
-// Esquema de validación
-const formSchema = z.object({
-  nombre: z.string().min(1, "El nombre es requerido"),
-  descripcion: z.string().optional(),
-})
-
-type FormValues = z.infer<typeof formSchema>
-
-interface ClasificacionFormProps {
-  clasificacion?: {
-    id: string
-    nombre: string
-    descripcion?: string
-  }
-  onSuccess?: () => void
-}
-
-export function ClasificacionForm({ clasificacion, onSuccess }: ClasificacionFormProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false)
+export function ClasificacionForm() {
+  const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
 
-  // Configurar el formulario con valores predeterminados si se está editando
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      nombre: clasificacion?.nombre || "",
-      descripcion: clasificacion?.descripcion || "",
-    },
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formData, setFormData] = useState({
+    id: null,
+    nombre: "",
+    abreviatura: "",
   })
 
-  const onSubmit = async (data: FormValues) => {
+  useEffect(() => {
+    // Listen for edit events
+    const handleEditClasificacion = (event) => {
+      const clasificacion = event.detail
+      setFormData({
+        id: clasificacion.id,
+        nombre: clasificacion.nombre,
+        abreviatura: clasificacion.abreviatura || "",
+      })
+    }
+
+    window.addEventListener("edit-clasificacion", handleEditClasificacion)
+
+    return () => {
+      window.removeEventListener("edit-clasificacion", handleEditClasificacion)
+    }
+  }, [])
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
     setIsSubmitting(true)
 
     try {
-      if (clasificacion) {
-        // Actualizar clasificación existente
+      if (formData.id) {
+        // Update existing clasificacion
         const { error } = await supabase
-          .from("clasificaciones")
+          .from("clasificacionesPeticion")
           .update({
-            nombre: data.nombre,
-            descripcion: data.descripcion,
+            nombre: formData.nombre,
+            abreviatura: formData.abreviatura,
           })
-          .eq("id", clasificacion.id)
+          .eq("id", formData.id)
 
         if (error) throw error
 
@@ -62,10 +67,10 @@ export function ClasificacionForm({ clasificacion, onSuccess }: ClasificacionFor
           description: "La clasificación ha sido actualizada exitosamente",
         })
       } else {
-        // Crear nueva clasificación
-        const { error } = await supabase.from("clasificaciones").insert({
-          nombre: data.nombre,
-          descripcion: data.descripcion,
+        // Create new clasificacion
+        const { error } = await supabase.from("clasificacionesPeticion").insert({
+          nombre: formData.nombre,
+          abreviatura: formData.abreviatura,
         })
 
         if (error) throw error
@@ -74,23 +79,21 @@ export function ClasificacionForm({ clasificacion, onSuccess }: ClasificacionFor
           title: "Clasificación creada",
           description: "La clasificación ha sido creada exitosamente",
         })
-
-        // Resetear el formulario después de crear
-        form.reset({
-          nombre: "",
-          descripcion: "",
-        })
       }
 
-      // Llamar al callback de éxito si se proporciona
-      if (onSuccess) {
-        onSuccess()
-      }
-    } catch (error: any) {
-      console.error("Error al guardar la clasificación:", error)
+      // Reset form
+      setFormData({
+        id: null,
+        nombre: "",
+        abreviatura: "",
+      })
+
+      router.refresh()
+    } catch (error) {
+      console.error("Error saving clasificacion:", error)
       toast({
         variant: "destructive",
-        title: "Error",
+        title: "Error al guardar",
         description: error.message || "Ocurrió un error al guardar la clasificación",
       })
     } finally {
@@ -98,33 +101,64 @@ export function ClasificacionForm({ clasificacion, onSuccess }: ClasificacionFor
     }
   }
 
+  const handleCancel = () => {
+    setFormData({
+      id: null,
+      nombre: "",
+      abreviatura: "",
+    })
+  }
+
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-      <div>
-        <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">
-          Nombre
-        </label>
-        <Input id="nombre" {...form.register("nombre")} className="mt-1" placeholder="Nombre de la clasificación" />
-        {form.formState.errors.nombre && (
-          <p className="mt-1 text-sm text-red-600">{form.formState.errors.nombre.message}</p>
-        )}
-      </div>
-
-      <div>
-        <label htmlFor="descripcion" className="block text-sm font-medium text-gray-700">
-          Descripción (opcional)
-        </label>
-        <Textarea
-          id="descripcion"
-          {...form.register("descripcion")}
-          className="mt-1"
-          placeholder="Descripción de la clasificación"
-        />
-      </div>
-
-      <Button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Guardando..." : clasificacion ? "Actualizar" : "Crear"}
-      </Button>
-    </form>
+    <Card>
+      <CardHeader>
+        <CardDescription>
+          {formData.id
+            ? "Actualice la información de la clasificación"
+            : "Complete el formulario para añadir una nueva clasificación."}
+        </CardDescription>
+      </CardHeader>
+      <form onSubmit={handleSubmit}>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="nombre">Nombre</Label>
+            <Input id="nombre" name="nombre" value={formData.nombre} onChange={handleInputChange} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="abreviatura">Abreviatura</Label>
+            <Input
+              id="abreviatura"
+              name="abreviatura"
+              value={formData.abreviatura}
+              onChange={handleInputChange}
+              required
+            />
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          {formData.id && (
+            <Button type="button" variant="outline" onClick={handleCancel} disabled={isSubmitting}>
+              Cancelar
+            </Button>
+          )}
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className={`${formData.id ? "" : "w-full"} bg-[#1a365d] hover:bg-[#15294d]`}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {formData.id ? "Actualizando..." : "Guardando..."}
+              </>
+            ) : formData.id ? (
+              "Actualizar"
+            ) : (
+              "Guardar"
+            )}
+          </Button>
+        </CardFooter>
+      </form>
+    </Card>
   )
 }
