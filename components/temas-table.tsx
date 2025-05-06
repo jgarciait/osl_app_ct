@@ -36,11 +36,7 @@ export function TemasTable({ temas = [] }) {
   const [pageSize, setPageSize] = useState(5)
 
   // Filtrar temas basados en la búsqueda
-  const filteredTemas = temas.filter(
-    (tema) =>
-      tema.nombre.toLowerCase().includes(searchValue.toLowerCase()) ||
-      (tema.abreviatura && tema.abreviatura.toLowerCase().includes(searchValue.toLowerCase())), // Cambiado de descripcion a abreviatura
-  )
+  const filteredTemas = temas.filter((tema) => tema.nombre.toLowerCase().includes(searchValue.toLowerCase()))
 
   // Calcular el número total de páginas
   const totalPages = Math.ceil(filteredTemas.length / pageSize)
@@ -64,9 +60,9 @@ export function TemasTable({ temas = [] }) {
     setIsDeleting(true)
 
     try {
-      // Check if tema is used in any expression
+      // Check if tema is used in any petition
       const { data: usedTemas, error: checkError } = await supabase
-        .from("expresiones")
+        .from("peticiones")
         .select("tema")
         .eq("tema", temaToDelete.id)
         .limit(1)
@@ -77,13 +73,13 @@ export function TemasTable({ temas = [] }) {
         toast({
           variant: "destructive",
           title: "No se puede eliminar",
-          description: "Este tema está siendo utilizado en una o más expresiones",
+          description: "Este tema está siendo utilizado en una o más peticiones",
         })
         return
       }
 
       // Delete tema
-      const { error } = await supabase.from("temas").delete().eq("id", temaToDelete.id)
+      const { error } = await supabase.from("temasPeticiones").delete().eq("id", temaToDelete.id)
 
       if (error) throw error
 
@@ -140,14 +136,13 @@ export function TemasTable({ temas = [] }) {
             <TableHeader>
               <TableRow>
                 <TableHead>Nombre</TableHead>
-                <TableHead>Abreviatura</TableHead>
                 {canManageTemas ? <TableHead className="w-[80px]"></TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredTemas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="h-24 text-center">
+                  <TableCell colSpan={2} className="h-24 text-center">
                     No hay temas registrados
                   </TableCell>
                 </TableRow>
@@ -155,7 +150,6 @@ export function TemasTable({ temas = [] }) {
                 paginatedTemas.map((tema) => (
                   <TableRow key={tema.id}>
                     <TableCell className="font-medium">{tema.nombre}</TableCell>
-                    <TableCell>{tema.abreviatura || "-"}</TableCell>
                     {canManageTemas ? (
                       <TableCell>
                         <DropdownMenu>

@@ -12,11 +12,23 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Save, Trash, Upload, File } from "lucide-react"
+import { ArrowLeft, Save, Upload, File, Trash } from "lucide-react"
 import Link from "next/link"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
 import { format } from "date-fns"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
+import { Check, ChevronsUpDown, Plus } from "lucide-react"
 
 export default function EditarPeticionPage({ params }) {
   const { id } = params
@@ -32,6 +44,20 @@ export default function EditarPeticionPage({ params }) {
   const [isUploading, setIsUploading] = useState(false)
   const [clasificacionActual, setClasificacionActual] = useState(null)
   const [legisladorActual, setLegisladorActual] = useState(null)
+  const [temas, setTemas] = useState([])
+  const [temaActual, setTemaActual] = useState(null)
+  const [openTemaPopover, setOpenTemaPopover] = useState(false)
+  const [temaSearch, setTemaSearch] = useState("")
+  const [openNuevoTemaDialog, setOpenNuevoTemaDialog] = useState(false)
+  const [nuevoTema, setNuevoTema] = useState("")
+  const [isCreatingTema, setIsCreatingTema] = useState(false)
+  const [asesorActual, setAsesorActual] = useState(null)
+  const [asesorSearch, setAsesorSearch] = useState("")
+
+  const [openAsesorPopover, setOpenAsesorPopover] = useState(false)
+  const [openNuevoAsesorDialog, setOpenNuevoAsesorDialog] = useState(false)
+  const [nuevoAsesor, setNuevoAsesor] = useState({ name: "", email: "", tel: "" })
+  const [isCreatingAsesor, setIsCreatingAsesor] = useState(false)
 
   const [formData, setFormData] = useState({
     // Tab 1: Información de Petición
@@ -39,6 +65,7 @@ export default function EditarPeticionPage({ params }) {
     clasificacion: "",
     legislador_id: "",
     legislador: "",
+    tema_id: "",
     fecha_recibido: "",
     detalles: "",
     year: "",
@@ -46,7 +73,7 @@ export default function EditarPeticionPage({ params }) {
 
     // Tab 2: Trámites
     fecha_asignacion: "",
-    asesor: "",
+    asesor_id: "", // Cambiado de asesor a asesor_id
     status: "",
     comentarios: "",
     tramite_despachado: false,
@@ -93,6 +120,14 @@ export default function EditarPeticionPage({ params }) {
 
         if (legisladoresError) throw legisladoresError
 
+        // Obtener lista de temas
+        const { data: temasData, error: temasError } = await supabase
+          .from("temasPeticiones")
+          .select("id, nombre")
+          .order("nombre")
+
+        if (temasError) throw temasError
+
         // Obtener la relación de clasificación actual
         const { data: relClasificacion, error: relClasificacionError } = await supabase
           .from("peticiones_clasificacion")
@@ -117,11 +152,39 @@ export default function EditarPeticionPage({ params }) {
           throw relLegisladorError
         }
 
+        // Obtener la relación de tema actual
+        const { data: relTema, error: relTemaError } = await supabase
+          .from("peticiones_temas")
+          .select("temasPeticiones_id")
+          .eq("peticiones_id", id)
+          .maybeSingle()
+
+        if (relTemaError && relTemaError.code !== "PGRST116") {
+          // Ignorar error si no hay resultados
+          throw relTemaError
+        }
+
+        // Obtener la relación de asesor actual
+        const { data: relAsesor, error: relAsesorError } = await supabase
+          .from("peticiones_asesores")
+          .select("asesores_id")
+          .eq("peticiones_id", id)
+          .maybeSingle()
+
+        if (relAsesorError && relAsesorError.code !== "PGRST116") {
+          // Ignorar error si no hay resultados
+          throw relAsesorError
+        }
+
+        setAsesorActual(relAsesor?.asesores_id || null)
+
         setAsesores(asesoresData || [])
         setClasificaciones(clasificacionesData || [])
         setLegisladores(legisladoresData || [])
+        setTemas(temasData || [])
         setClasificacionActual(relClasificacion?.clasificaciones_id || null)
         setLegisladorActual(relLegislador?.legisladoresPeticion_id || null)
+        setTemaActual(relTema?.temasPeticiones_id || null)
 
         // Formatear fechas para los inputs de tipo date
         const formattedFechaRecibido = peticion.fecha_recibido
@@ -137,12 +200,13 @@ export default function EditarPeticionPage({ params }) {
           clasificacion_id: relClasificacion?.clasificaciones_id || "",
           legislador: peticion.legislador || "",
           legislador_id: relLegislador?.legisladoresPeticion_id || "",
+          tema_id: relTema?.temasPeticiones_id || "",
+          asesor_id: relAsesor?.asesores_id || "", // Añadir esta línea
           fecha_recibido: formattedFechaRecibido,
           detalles: peticion.detalles || "",
           year: peticion.year?.toString() || "",
           mes: peticion.mes?.toString() || "",
           fecha_asignacion: formattedFechaAsignacion,
-          asesor: peticion.asesor || "",
           status: peticion.status || "Recibida",
           comentarios: peticion.comentarios || "",
           tramite_despachado: peticion.tramite_despachado || false,
@@ -250,7 +314,123 @@ export default function EditarPeticionPage({ params }) {
     setUploadedFiles((prev) => prev.filter((file) => file.id !== fileId))
   }
 
-  const handleSubmit = async (e) => {
+  const handleCrearTema = async () => {
+    if (!nuevoTema.trim()) return
+
+    setIsCreatingTema(true)
+    const supabase = createClientClient()
+
+    try {
+      // Insertar nuevo tema
+      const { data, error } = await supabase
+        .from("temasPeticiones")
+        .insert({
+          nombre: nuevoTema.trim(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+
+      if (error) throw error
+
+      // Obtener el tema recién creado
+      const { data: nuevoTemaData, error: fetchError } = await supabase
+        .from("temasPeticiones")
+        .select("id, nombre")
+        .eq("nombre", nuevoTema.trim())
+        .single()
+
+      if (fetchError) throw fetchError
+
+      // Actualizar la lista de temas
+      setTemas((prev) => [...prev, nuevoTemaData])
+
+      // Seleccionar el nuevo tema
+      setFormData((prev) => ({
+        ...prev,
+        tema_id: nuevoTemaData.id,
+      }))
+
+      toast({
+        title: "Tema creado",
+        description: `El tema "${nuevoTema}" ha sido creado correctamente.`,
+      })
+
+      // Cerrar el diálogo y limpiar el campo
+      setOpenNuevoTemaDialog(false)
+      setNuevoTema("")
+    } catch (error) {
+      console.error("Error creating tema:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: `No se pudo crear el tema: ${error.message}`,
+      })
+    } finally {
+      setIsCreatingTema(false)
+    }
+  }
+
+  const handleCrearAsesor = async () => {
+    if (!nuevoAsesor.name.trim()) return
+
+    setIsCreatingAsesor(true)
+    const supabase = createClientClient()
+
+    try {
+      // Insertar nuevo asesor
+      const { data, error } = await supabase
+        .from("asesores")
+        .insert({
+          name: nuevoAsesor.name.trim(),
+          email: nuevoAsesor.email.trim(),
+          tel: nuevoAsesor.tel.trim(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+
+      if (error) throw error
+
+      // Obtener el asesor recién creado
+      const { data: nuevoAsesorData, error: fetchError } = await supabase
+        .from("asesores")
+        .select("id, name")
+        .eq("name", nuevoAsesor.name.trim())
+        .single()
+
+      if (fetchError) throw fetchError
+
+      // Actualizar la lista de asesores
+      setAsesores((prev) => [...prev, nuevoAsesorData])
+
+      // Seleccionar el nuevo asesor
+      setFormData((prev) => ({
+        ...prev,
+        asesor_id: nuevoAsesorData.id,
+      }))
+
+      toast({
+        title: "Asesor creado",
+        description: `El asesor "${nuevoAsesor.name}" ha sido creado correctamente.`,
+      })
+
+      // Cerrar el diálogo y limpiar el campo
+      setOpenNuevoAsesorDialog(false)
+      setNuevoAsesor({ name: "", email: "", tel: "" })
+    } catch (error) {
+      console.error("Error creating asesor:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: `No se pudo crear el asesor: ${error.message}`,
+      })
+    } finally {
+      setIsCreatingAsesor(false)
+    }
+  }
+
+  const handleSubmit = async (e, shouldRedirect = false, stayOnPage = false) => {
     e.preventDefault()
     setIsSaving(true)
 
@@ -262,12 +442,24 @@ export default function EditarPeticionPage({ params }) {
         ...formData,
         year: formData.year ? Number.parseInt(formData.year) : null,
         mes: formData.mes ? Number.parseInt(formData.mes) : null,
+        fecha_recibido: formData.fecha_recibido || null,
+        fecha_asignacion: formData.fecha_asignacion || null,
         updated_at: new Date().toISOString(),
       }
 
       // Eliminar campos de ID que no son columnas en la tabla peticiones
       delete updateData.clasificacion_id
       delete updateData.legislador_id
+      delete updateData.tema_id
+      delete updateData.legislador
+      delete updateData.asesor_id
+
+      // Convertir campos de fecha vacíos a null
+      Object.keys(updateData).forEach((key) => {
+        if (key.startsWith("fecha_") && updateData[key] === "") {
+          updateData[key] = null
+        }
+      })
 
       const { error } = await supabase.from("peticiones").update(updateData).eq("id", id)
 
@@ -331,12 +523,76 @@ export default function EditarPeticionPage({ params }) {
         }
       }
 
+      // Actualizar la relación de tema si ha cambiado
+      if (formData.tema_id !== temaActual) {
+        if (temaActual) {
+          // Eliminar la relación anterior
+          const { error: delError } = await supabase
+            .from("peticiones_temas")
+            .delete()
+            .eq("peticiones_id", id)
+            .eq("temasPeticiones_id", temaActual)
+
+          if (delError) {
+            console.error("Error deleting tema relation:", delError)
+          }
+        }
+
+        if (formData.tema_id) {
+          // Crear nueva relación
+          const { error: insError } = await supabase.from("peticiones_temas").insert({
+            peticiones_id: id,
+            temasPeticiones_id: formData.tema_id,
+            created_at: new Date().toISOString(),
+          })
+
+          if (insError) {
+            console.error("Error creating tema relation:", insError)
+          }
+        }
+      }
+
+      // Actualizar la relación de asesor si ha cambiado
+      if (formData.asesor_id !== asesorActual) {
+        if (asesorActual) {
+          // Eliminar la relación anterior
+          const { error: delError } = await supabase
+            .from("peticiones_asesores")
+            .delete()
+            .eq("peticiones_id", id)
+            .eq("asesores_id", asesorActual)
+
+          if (delError) {
+            console.error("Error deleting asesor relation:", delError)
+          }
+        }
+
+        if (formData.asesor_id) {
+          // Crear nueva relación
+          const { error: insError } = await supabase.from("peticiones_asesores").insert({
+            peticiones_id: id,
+            asesores_id: formData.asesor_id,
+            created_at: new Date().toISOString(),
+          })
+
+          if (insError) {
+            console.error("Error creating asesor relation:", insError)
+          }
+        }
+      }
+
       toast({
         title: "Petición actualizada",
         description: "La petición ha sido actualizada correctamente.",
       })
 
-      router.push(`/dashboard/peticiones/${id}/ver`)
+      if (!stayOnPage) {
+        if (shouldRedirect) {
+          router.push("/dashboard/peticiones")
+        } else {
+          router.push(`/dashboard/peticiones/${id}/ver`)
+        }
+      }
     } catch (error) {
       console.error("Error updating peticion:", error)
       toast({
@@ -375,6 +631,22 @@ export default function EditarPeticionPage({ params }) {
         // Continuamos con la eliminación de la petición aunque falle la eliminación de relaciones
       }
 
+      // Eliminar las relaciones en peticiones_temas
+      const { error: relTemaError } = await supabase.from("peticiones_temas").delete().eq("peticiones_id", id)
+
+      if (relTemaError) {
+        console.error("Error deleting tema relations:", relTemaError)
+        // Continuamos con la eliminación de la petición aunque falle la eliminación de relaciones
+      }
+
+      // Eliminar las relaciones en peticiones_asesores
+      const { error: relAsesorError } = await supabase.from("peticiones_asesores").delete().eq("peticiones_id", id)
+
+      if (relAsesorError) {
+        console.error("Error deleting asesor relations:", relAsesorError)
+        // Continuamos con la eliminación de la petición aunque falle la eliminación de relaciones
+      }
+
       // Luego eliminar la petición
       const { error } = await supabase.from("peticiones").delete().eq("id", id)
 
@@ -408,16 +680,10 @@ export default function EditarPeticionPage({ params }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" asChild>
-          <Link href={`/dashboard/peticiones/${id}/ver`}>
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Volver
-          </Link>
-        </Button>
         <h1 className="text-2xl font-bold">Editar Petición</h1>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={(e) => e.preventDefault()}>
         <Card>
           <CardHeader>
             <CardTitle>Información de la petición</CardTitle>
@@ -486,6 +752,84 @@ export default function EditarPeticionPage({ params }) {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="tema">Tema</Label>
+                  <div className="flex gap-2">
+                    <Popover open={openTemaPopover} onOpenChange={setOpenTemaPopover}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={openTemaPopover}
+                          className="w-full justify-between"
+                        >
+                          {formData.tema_id
+                            ? temas.find((tema) => tema.id === formData.tema_id)?.nombre
+                            : "Seleccionar tema"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Buscar tema..." value={temaSearch} onValueChange={setTemaSearch} />
+                          <CommandList>
+                            <CommandEmpty>
+                              No se encontraron resultados.
+                              <Button
+                                variant="ghost"
+                                className="mt-2 w-full justify-start"
+                                onClick={() => {
+                                  setNuevoTema(temaSearch)
+                                  setOpenNuevoTemaDialog(true)
+                                  setOpenTemaPopover(false)
+                                }}
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Crear "{temaSearch}"
+                              </Button>
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {temas
+                                .filter((tema) => tema.nombre.toLowerCase().includes(temaSearch.toLowerCase()))
+                                .map((tema) => (
+                                  <CommandItem
+                                    key={tema.id}
+                                    value={tema.id}
+                                    onSelect={() => {
+                                      setFormData((prev) => ({ ...prev, tema_id: tema.id }))
+                                      setOpenTemaPopover(false)
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        formData.tema_id === tema.id ? "opacity-100" : "opacity-0",
+                                      )}
+                                    />
+                                    {tema.nombre}
+                                  </CommandItem>
+                                ))}
+                            </CommandGroup>
+                          </CommandList>
+                          <div className="p-2 border-t">
+                            <Button
+                              variant="ghost"
+                              className="w-full justify-start"
+                              onClick={() => {
+                                setOpenNuevoTemaDialog(true)
+                                setOpenTemaPopover(false)
+                              }}
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              Crear nuevo tema
+                            </Button>
+                          </div>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="detalles">Detalles de Petición</Label>
                   <Textarea
                     id="detalles"
@@ -514,18 +858,84 @@ export default function EditarPeticionPage({ params }) {
 
                 <div className="space-y-2">
                   <Label htmlFor="asesor">Asesor</Label>
-                  <Select value={formData.asesor} onValueChange={(value) => handleSelectChange("asesor", value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar asesor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {asesores.map((asesor) => (
-                        <SelectItem key={asesor.id} value={asesor.id}>
-                          {asesor.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <Popover open={openAsesorPopover} onOpenChange={setOpenAsesorPopover}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={openAsesorPopover}
+                          className="w-full justify-between"
+                        >
+                          {formData.asesor_id
+                            ? asesores.find((asesor) => asesor.id === formData.asesor_id)?.name
+                            : "Seleccionar asesor"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0">
+                        <Command>
+                          <CommandInput
+                            placeholder="Buscar asesor..."
+                            value={asesorSearch}
+                            onValueChange={setAsesorSearch}
+                          />
+                          <CommandList>
+                            <CommandEmpty>
+                              No se encontraron resultados.
+                              <Button
+                                variant="ghost"
+                                className="mt-2 w-full justify-start"
+                                onClick={() => {
+                                  setNuevoAsesor({ ...nuevoAsesor, name: asesorSearch })
+                                  setOpenNuevoAsesorDialog(true)
+                                  setOpenAsesorPopover(false)
+                                }}
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Crear "{asesorSearch}"
+                              </Button>
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {asesores
+                                .filter((asesor) => asesor.name.toLowerCase().includes(asesorSearch.toLowerCase()))
+                                .map((asesor) => (
+                                  <CommandItem
+                                    key={asesor.id}
+                                    value={asesor.id}
+                                    onSelect={() => {
+                                      setFormData((prev) => ({ ...prev, asesor_id: asesor.id }))
+                                      setOpenAsesorPopover(false)
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        formData.asesor_id === asesor.id ? "opacity-100" : "opacity-0",
+                                      )}
+                                    />
+                                    {asesor.name}
+                                  </CommandItem>
+                                ))}
+                            </CommandGroup>
+                          </CommandList>
+                          <div className="p-2 border-t">
+                            <Button
+                              variant="ghost"
+                              className="w-full justify-start"
+                              onClick={() => {
+                                setOpenNuevoAsesorDialog(true)
+                                setOpenAsesorPopover(false)
+                              }}
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              Crear nuevo asesor
+                            </Button>
+                          </div>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -607,17 +1017,122 @@ export default function EditarPeticionPage({ params }) {
             </Tabs>
           </CardContent>
           <CardFooter className="flex justify-between">
-            <Button type="button" variant="destructive" onClick={() => setIsDeleteDialogOpen(true)}>
-              <Trash className="mr-2 h-4 w-4" />
-              Eliminar
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard/peticiones">
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                Ver Peticiones
+              </Link>
             </Button>
-            <Button type="submit" disabled={isSaving}>
-              <Save className="mr-2 h-4 w-4" />
-              {isSaving ? "Guardando..." : "Guardar cambios"}
-            </Button>
+            <div className="flex space-x-2">
+              <Button type="button" onClick={(e) => handleSubmit(e, false, true)} disabled={isSaving}>
+                <Save className="mr-2 h-4 w-4" />
+                {isSaving ? "Guardando..." : "Guardar"}
+              </Button>
+              <Button type="button" onClick={(e) => handleSubmit(e, true)} disabled={isSaving} variant="outline">
+                <Save className="mr-2 h-4 w-4" />
+                {isSaving ? "Guardando..." : "Guardar y salir"}
+              </Button>
+            </div>
           </CardFooter>
         </Card>
       </form>
+
+      {/* Diálogo para crear nuevo tema */}
+      <Dialog open={openNuevoTemaDialog} onOpenChange={setOpenNuevoTemaDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Crear nuevo tema</DialogTitle>
+            <DialogDescription>Ingrese el nombre del nuevo tema para peticiones.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="nombre-tema" className="text-right">
+                Nombre
+              </Label>
+              <Input
+                id="nombre-tema"
+                value={nuevoTema}
+                onChange={(e) => setNuevoTema(e.target.value)}
+                className="col-span-3"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpenNuevoTemaDialog(false)}
+              disabled={isCreatingTema}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleCrearTema} disabled={!nuevoTema.trim() || isCreatingTema}>
+              {isCreatingTema ? "Creando..." : "Crear tema"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo para crear nuevo asesor */}
+      <Dialog open={openNuevoAsesorDialog} onOpenChange={setOpenNuevoAsesorDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Crear nuevo asesor</DialogTitle>
+            <DialogDescription>Ingrese los datos del nuevo asesor.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="nombre-asesor" className="text-right">
+                Nombre
+              </Label>
+              <Input
+                id="nombre-asesor"
+                value={nuevoAsesor.name}
+                onChange={(e) => setNuevoAsesor({ ...nuevoAsesor, name: e.target.value })}
+                className="col-span-3"
+                autoFocus
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email-asesor" className="text-right">
+                Email
+              </Label>
+              <Input
+                id="email-asesor"
+                type="email"
+                value={nuevoAsesor.email}
+                onChange={(e) => setNuevoAsesor({ ...nuevoAsesor, email: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="tel-asesor" className="text-right">
+                Teléfono
+              </Label>
+              <Input
+                id="tel-asesor"
+                value={nuevoAsesor.tel}
+                onChange={(e) => setNuevoAsesor({ ...nuevoAsesor, tel: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpenNuevoAsesorDialog(false)}
+              disabled={isCreatingAsesor}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleCrearAsesor} disabled={!nuevoAsesor.name.trim() || isCreatingAsesor}>
+              {isCreatingAsesor ? "Creando..." : "Crear asesor"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmationDialog
         open={isDeleteDialogOpen}

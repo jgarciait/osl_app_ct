@@ -11,9 +11,22 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Save, Upload, File, Trash } from "lucide-react"
+import { ArrowLeft, Save, Upload, File, Trash, Plus } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
+import { Check, ChevronsUpDown } from "lucide-react"
+import { CommandList } from "@/components/ui/command"
 
 export default function NuevaPeticionPage() {
   const router = useRouter()
@@ -22,14 +35,22 @@ export default function NuevaPeticionPage() {
   const [asesores, setAsesores] = useState([])
   const [clasificaciones, setClasificaciones] = useState([])
   const [legisladores, setLegisladores] = useState([])
+  const [temas, setTemas] = useState([])
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [isUploading, setIsUploading] = useState(false)
   const [legisladorSearch, setLegisladorSearch] = useState("")
+  const [temaSearch, setTemaSearch] = useState("")
+  const [openTemaPopover, setOpenTemaPopover] = useState(false)
+  const [openNuevoTemaDialog, setOpenNuevoTemaDialog] = useState(false)
+  const [nuevoTema, setNuevoTema] = useState("")
+  const [isCreatingTema, setIsCreatingTema] = useState(false)
+  const [asesorSearch, setAsesorSearch] = useState("")
 
   const [formData, setFormData] = useState({
     // Tab 1: Información de Petición
     clasificacion_id: "",
     legislador_id: "",
+    tema_id: "",
     fecha_recibido: format(new Date(), "yyyy-MM-dd"),
     detalles: "",
     year: new Date().getFullYear().toString(),
@@ -37,7 +58,7 @@ export default function NuevaPeticionPage() {
 
     // Tab 2: Trámites
     fecha_asignacion: "",
-    asesor: "",
+    asesor_id: "", // Cambiado de asesor a asesor_id
     status: "Recibida",
     comentarios: "",
     tramite_despachado: false,
@@ -86,10 +107,34 @@ export default function NuevaPeticionPage() {
       } else {
         setLegisladores(legisladoresData || [])
       }
+
+      // Obtener temas
+      const { data: temasData, error: temasError } = await supabase
+        .from("temasPeticiones")
+        .select("id, nombre")
+        .order("nombre")
+
+      if (temasError) {
+        console.error("Error fetching temas:", temasError)
+      } else {
+        setTemas(temasData || [])
+      }
     }
 
     fetchData()
   }, [])
+
+  // Actualizar el año y mes cuando cambia la fecha de recibido
+  useEffect(() => {
+    if (formData.fecha_recibido) {
+      const fecha = new Date(formData.fecha_recibido)
+      setFormData((prev) => ({
+        ...prev,
+        year: fecha.getFullYear().toString(),
+        mes: (fecha.getMonth() + 1).toString(),
+      }))
+    }
+  }, [formData.fecha_recibido])
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -153,6 +198,63 @@ export default function NuevaPeticionPage() {
     setUploadedFiles((prev) => prev.filter((file) => file.id !== fileId))
   }
 
+  const handleCrearTema = async () => {
+    if (!nuevoTema.trim()) return
+
+    setIsCreatingTema(true)
+    const supabase = createClientClient()
+
+    try {
+      // Insertar nuevo tema
+      const { data, error } = await supabase
+        .from("temasPeticiones")
+        .insert({
+          nombre: nuevoTema.trim(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+
+      if (error) throw error
+
+      // Obtener el tema recién creado
+      const { data: nuevoTemaData, error: fetchError } = await supabase
+        .from("temasPeticiones")
+        .select("id, nombre")
+        .eq("nombre", nuevoTema.trim())
+        .single()
+
+      if (fetchError) throw fetchError
+
+      // Actualizar la lista de temas
+      setTemas((prev) => [...prev, nuevoTemaData])
+
+      // Seleccionar el nuevo tema
+      setFormData((prev) => ({
+        ...prev,
+        tema_id: nuevoTemaData.id,
+      }))
+
+      toast({
+        title: "Tema creado",
+        description: `El tema "${nuevoTema}" ha sido creado correctamente.`,
+      })
+
+      // Cerrar el diálogo y limpiar el campo
+      setOpenNuevoTemaDialog(false)
+      setNuevoTema("")
+    } catch (error) {
+      console.error("Error creating tema:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: `No se pudo crear el tema: ${error.message}`,
+      })
+    } finally {
+      setIsCreatingTema(false)
+    }
+  }
+
   const handleSubmit = async (e, redirectType = "view") => {
     e.preventDefault()
     setIsSaving(true)
@@ -160,30 +262,43 @@ export default function NuevaPeticionPage() {
     const supabase = createClientClient()
 
     try {
+      // Obtener el año de la fecha de recibido y extraer los dos últimos dígitos
+      const fechaRecibido = new Date(formData.fecha_recibido)
+      const yearFull = fechaRecibido.getFullYear()
+      const yearShort = yearFull.toString().slice(-2) // Obtener los últimos 2 dígitos del año
+
       // Obtener último número de petición del año actual para incrementarlo
       const { data: lastPeticion, error: fetchError } = await supabase
         .from("peticiones")
         .select("num_peticion")
-        .eq("year", Number.parseInt(formData.year))
+        .eq("year", yearFull)
         .order("created_at", { ascending: false })
         .limit(1)
 
       if (fetchError) throw fetchError
 
       // Generar nuevo número de petición
-      let numPeticion = "001"
+      let numSecuencial = "0001"
       if (lastPeticion && lastPeticion.length > 0 && lastPeticion[0].num_peticion) {
-        const lastNum = lastPeticion[0].num_peticion.split("-")[0]
-        const nextNum = Number.parseInt(lastNum) + 1
-        numPeticion = nextNum.toString().padStart(3, "0")
+        // Extraer el número secuencial de la última petición
+        const lastNum = lastPeticion[0].num_peticion.split("-")[1]
+        if (lastNum) {
+          // Incrementar el número y asegurar que tenga 4 dígitos
+          const nextNum = (Number.parseInt(lastNum) + 1).toString().padStart(4, "0")
+          numSecuencial = nextNum
+        }
       }
 
-      // Formato final: 001-2023
-      const fullNumPeticion = `${numPeticion}-${formData.year}`
+      // Formato final: AA-NNNN (ejemplo: 25-0001)
+      const fullNumPeticion = `${yearShort}-${numSecuencial}`
 
       // Buscar el nombre de la clasificación seleccionada
       const clasificacionSeleccionada = clasificaciones.find((c) => c.id === formData.clasificacion_id)
       const clasificacionNombre = clasificacionSeleccionada ? clasificacionSeleccionada.nombre : ""
+
+      // Buscar el nombre del tema seleccionado
+      const temaSeleccionado = temas.find((t) => t.id === formData.tema_id)
+      const temaNombre = temaSeleccionado ? temaSeleccionado.nombre : ""
 
       // Preparar datos para la inserción
       // Convertir campos de fecha vacíos a null para evitar errores de timestamp
@@ -191,10 +306,9 @@ export default function NuevaPeticionPage() {
         clasificacion: clasificacionNombre,
         fecha_recibido: formData.fecha_recibido || null,
         detalles: formData.detalles,
-        year: Number.parseInt(formData.year),
-        mes: Number.parseInt(formData.mes),
+        year: yearFull,
+        mes: fechaRecibido.getMonth() + 1,
         fecha_asignacion: formData.fecha_asignacion || null,
-        asesor: formData.asesor || null,
         status: formData.status,
         comentarios: formData.comentarios,
         tramite_despachado: formData.tramite_despachado,
@@ -236,6 +350,34 @@ export default function NuevaPeticionPage() {
         }
       }
 
+      // Crear relación en peticiones_temas si se seleccionó un tema
+      if (formData.tema_id) {
+        const { error: relError } = await supabase.from("peticiones_temas").insert({
+          peticiones_id: data[0].id,
+          temasPeticiones_id: formData.tema_id,
+          created_at: new Date().toISOString(),
+        })
+
+        if (relError) {
+          console.error("Error creating tema relation:", relError)
+          // No lanzamos error para no interrumpir el flujo principal
+        }
+      }
+
+      // Crear relación en peticiones_asesores si se seleccionó un asesor
+      if (formData.asesor_id) {
+        const { error: relError } = await supabase.from("peticiones_asesores").insert({
+          peticiones_id: data[0].id,
+          asesores_id: formData.asesor_id,
+          created_at: new Date().toISOString(),
+        })
+
+        if (relError) {
+          console.error("Error creating asesor relation:", relError)
+          // No lanzamos error para no interrumpir el flujo principal
+        }
+      }
+
       // Si hay archivos, asociarlos a la petición
       // Aquí iría el código para guardar la relación entre los archivos y la petición
 
@@ -268,12 +410,6 @@ export default function NuevaPeticionPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/dashboard/peticiones">
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Volver
-          </Link>
-        </Button>
         <h1 className="text-2xl font-bold">Nueva Petición</h1>
       </div>
 
@@ -365,6 +501,84 @@ export default function NuevaPeticionPage() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="tema">Tema</Label>
+                  <div className="flex gap-2">
+                    <Popover open={openTemaPopover} onOpenChange={setOpenTemaPopover}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={openTemaPopover}
+                          className="w-full justify-between"
+                        >
+                          {formData.tema_id
+                            ? temas.find((tema) => tema.id === formData.tema_id)?.nombre
+                            : "Seleccionar tema"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Buscar tema..." value={temaSearch} onValueChange={setTemaSearch} />
+                          <CommandList>
+                            <CommandEmpty>
+                              No se encontraron resultados.
+                              <Button
+                                variant="ghost"
+                                className="mt-2 w-full justify-start"
+                                onClick={() => {
+                                  setNuevoTema(temaSearch)
+                                  setOpenNuevoTemaDialog(true)
+                                  setOpenTemaPopover(false)
+                                }}
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Crear "{temaSearch}"
+                              </Button>
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {temas
+                                .filter((tema) => tema.nombre.toLowerCase().includes(temaSearch.toLowerCase()))
+                                .map((tema) => (
+                                  <CommandItem
+                                    key={tema.id}
+                                    value={tema.id}
+                                    onSelect={() => {
+                                      setFormData((prev) => ({ ...prev, tema_id: tema.id }))
+                                      setOpenTemaPopover(false)
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        formData.tema_id === tema.id ? "opacity-100" : "opacity-0",
+                                      )}
+                                    />
+                                    {tema.nombre}
+                                  </CommandItem>
+                                ))}
+                            </CommandGroup>
+                          </CommandList>
+                          <div className="p-2 border-t">
+                            <Button
+                              variant="ghost"
+                              className="w-full justify-start"
+                              onClick={() => {
+                                setOpenNuevoTemaDialog(true)
+                                setOpenTemaPopover(false)
+                              }}
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              Crear nuevo tema
+                            </Button>
+                          </div>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="detalles">Detalles de Petición</Label>
                   <Textarea
                     id="detalles"
@@ -393,16 +607,33 @@ export default function NuevaPeticionPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="asesor">Asesor</Label>
-                  <Select value={formData.asesor} onValueChange={(value) => handleSelectChange("asesor", value)}>
+                  <Select value={formData.asesor_id} onValueChange={(value) => handleSelectChange("asesor_id", value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar asesor" />
                     </SelectTrigger>
                     <SelectContent>
-                      {asesores.map((asesor) => (
-                        <SelectItem key={asesor.id} value={asesor.id}>
-                          {asesor.name}
-                        </SelectItem>
-                      ))}
+                      <div className="px-2 py-2 sticky top-0 bg-white z-10">
+                        <Input
+                          placeholder="Buscar asesor..."
+                          value={asesorSearch}
+                          onChange={(e) => setAsesorSearch(e.target.value)}
+                          onClick={(e) => e.stopPropagation()} // Prevenir que el dropdown se cierre
+                        />
+                      </div>
+
+                      {asesores
+                        .filter((asesor) => asesor.name.toLowerCase().includes(asesorSearch.toLowerCase()))
+                        .map((asesor) => (
+                          <SelectItem key={asesor.id} value={asesor.id}>
+                            {asesor.name}
+                          </SelectItem>
+                        ))}
+
+                      {/* Mensaje cuando no hay resultados */}
+                      {asesorSearch &&
+                        !asesores.some((a) => a.name.toLowerCase().includes(asesorSearch.toLowerCase())) && (
+                          <div className="px-2 py-2 text-sm text-gray-500">No se encontraron resultados</div>
+                        )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -476,17 +707,62 @@ export default function NuevaPeticionPage() {
               </TabsContent>
             </Tabs>
           </CardContent>
-          <CardFooter className="flex justify-end gap-2">
-            <Button type="button" disabled={isSaving} onClick={(e) => handleSubmit(e, "edit")}>
-              <Save className="mr-2 h-4 w-4" />
-              {isSaving ? "Guardando..." : "Crear Petición"}
+          <CardFooter className="flex justify-between">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard/peticiones">
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                Ver Peticiones
+              </Link>
             </Button>
-            <Button type="button" disabled={isSaving} variant="outline" onClick={(e) => handleSubmit(e, "list")}>
-              {isSaving ? "Guardando..." : "Crear y Salir"}
-            </Button>
+            <div className="flex gap-2">
+              <Button type="button" disabled={isSaving} onClick={(e) => handleSubmit(e, "edit")}>
+                <Save className="mr-2 h-4 w-4" />
+                {isSaving ? "Guardando..." : "Crear Petición"}
+              </Button>
+              <Button type="button" disabled={isSaving} variant="outline" onClick={(e) => handleSubmit(e, "list")}>
+                {isSaving ? "Guardando..." : "Crear y Salir"}
+              </Button>
+            </div>
           </CardFooter>
         </Card>
       </form>
+
+      {/* Diálogo para crear nuevo tema */}
+      <Dialog open={openNuevoTemaDialog} onOpenChange={setOpenNuevoTemaDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Crear nuevo tema</DialogTitle>
+            <DialogDescription>Ingrese el nombre del nuevo tema para peticiones.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="nombre-tema" className="text-right">
+                Nombre
+              </Label>
+              <Input
+                id="nombre-tema"
+                value={nuevoTema}
+                onChange={(e) => setNuevoTema(e.target.value)}
+                className="col-span-3"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpenNuevoTemaDialog(false)}
+              disabled={isCreatingTema}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleCrearTema} disabled={!nuevoTema.trim() || isCreatingTema}>
+              {isCreatingTema ? "Creando..." : "Crear tema"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

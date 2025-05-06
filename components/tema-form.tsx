@@ -23,7 +23,6 @@ export function TemaForm() {
   const [formData, setFormData] = useState({
     id: null,
     nombre: "",
-    abreviatura: "",
   })
 
   useEffect(() => {
@@ -33,7 +32,6 @@ export function TemaForm() {
       setFormData({
         id: tema.id,
         nombre: tema.nombre,
-        abreviatura: tema.abreviatura || "",
       })
     }
 
@@ -57,10 +55,9 @@ export function TemaForm() {
       if (formData.id) {
         // Update existing tema
         const { error } = await supabase
-          .from("temas")
+          .from("temasPeticiones")
           .update({
             nombre: formData.nombre,
-            abreviatura: formData.abreviatura,
           })
           .eq("id", formData.id)
 
@@ -72,9 +69,8 @@ export function TemaForm() {
         })
       } else {
         // Create new tema
-        const { error } = await supabase.from("temas").insert({
+        const { error } = await supabase.from("temasPeticiones").insert({
           nombre: formData.nombre,
-          abreviatura: formData.abreviatura,
         })
 
         if (error) throw error
@@ -89,7 +85,6 @@ export function TemaForm() {
       setFormData({
         id: null,
         nombre: "",
-        abreviatura: "",
       })
 
       router.refresh()
@@ -109,7 +104,6 @@ export function TemaForm() {
     setFormData({
       id: null,
       nombre: "",
-      abreviatura: "",
     })
   }
 
@@ -125,11 +119,6 @@ export function TemaForm() {
           <div className="space-y-2">
             <Label htmlFor="nombre">Nombre</Label>
             <Input id="nombre" name="nombre" value={formData.nombre} onChange={handleInputChange} required />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="abreviatura">Abreviatura</Label>
-            <Input id="abreviatura" name="abreviatura" value={formData.abreviatura} onChange={handleInputChange} />
           </div>
         </CardContent>
         <CardFooter className="flex justify-between">

@@ -60,22 +60,36 @@ export default function PeticionesPage() {
           userMap.set(profile.id, `${profile.nombre} ${profile.apellido}`)
         })
 
-        // Obtener las peticiones
+        // Obtener las peticiones con sus relaciones
         const { data, error } = await supabase
           .from("peticiones")
           .select(`
-            id, 
-            clasificacion,
-            year, 
-            mes, 
-            archivado, 
-            created_at,
-            asesor,
-            status,
-            detalles,
-            num_peticion,
-            tramite_despachado
-          `)
+id, 
+clasificacion,
+year, 
+mes, 
+archivado, 
+created_at,
+asesor,
+status,
+detalles,
+num_peticion,
+tramite_despachado,
+fecha_asignacion,
+fecha_limite,
+peticiones_legisladores(
+  legisladoresPeticion(id, nombre)
+),
+peticiones_clasificacion(
+  clasificacionesPeticion(id, nombre)
+),
+peticiones_temas(
+  temasPeticiones(id, nombre)
+),
+peticiones_asesores(
+  asesores(id, name, color)
+)
+`)
           .order("created_at", { ascending: false })
 
         if (error) {
@@ -85,9 +99,26 @@ export default function PeticionesPage() {
 
         // Procesamos los datos
         const processedData = data.map((peticion) => {
+          // Obtener el nombre del legislador si existe
+          const legislador = peticion.peticiones_legisladores?.[0]?.legisladoresPeticion?.nombre || "-"
+
+          // Obtener el nombre de la clasificación si existe
+          const clasificacionNombre = peticion.peticiones_clasificacion?.[0]?.clasificacionesPeticion?.nombre || "-"
+
+          // Obtener el nombre del tema si existe
+          const temaNombre = peticion.peticiones_temas?.[0]?.temasPeticiones?.nombre || "-"
+
+          // Obtener el nombre y color del asesor si existe
+          const asesorNombre = peticion.peticiones_asesores?.[0]?.asesores?.name || "-"
+          const asesorColor = peticion.peticiones_asesores?.[0]?.asesores?.color || null
+
           return {
             ...peticion,
-            // Podemos agregar campos adicionales si es necesario
+            legislador,
+            clasificacionNombre,
+            temaNombre,
+            asesorNombre,
+            asesorColor,
           }
         })
 

@@ -21,7 +21,7 @@ export default function TemasPage() {
     const fetchTemas = async () => {
       setLoading(true)
       try {
-        const { data, error } = await supabase.from("temas").select("*").order("nombre", { ascending: true })
+        const { data, error } = await supabase.from("temasPeticiones").select("*").order("nombre", { ascending: true })
 
         if (error) {
           console.error("Error fetching temas:", error)
@@ -39,13 +39,13 @@ export default function TemasPage() {
     // Set up real-time subscription
     const setupSubscription = async () => {
       subscription = supabase
-        .channel("temas-changes")
+        .channel("temasPeticiones-changes")
         .on(
           "postgres_changes",
           {
             event: "*",
             schema: "public",
-            table: "temas",
+            table: "temasPeticiones",
           },
           (payload) => {
             const { eventType, new: newRecord, old: oldRecord } = payload
@@ -93,7 +93,7 @@ export default function TemasPage() {
       <div className="space-y-6">
         {canManageTemas && (
           <div>
-            <p className="text-muted-foreground">Administre los temas para clasificar las expresiones ciudadanas</p>
+            <p className="text-muted-foreground">Administre los temas para clasificar las peticiones</p>
           </div>
         )}
         <div className="grid gap-6 md:grid-cols-2">
