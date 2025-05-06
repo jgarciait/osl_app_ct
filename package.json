@@ -71,8 +71,8 @@
     "react-select": "latest",
     "jspdf-autotable": "latest",
     "jszip": "latest",
-    "react-force-graph-2d": "latest",
     "xlsx": "latest",
+    "react-force-graph-2d": "latest",
     "@supabase/ssr": "latest",
     "@supabase/auth-helpers-nextjs": "latest"
   },

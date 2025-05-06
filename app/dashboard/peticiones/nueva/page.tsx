@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Save, Upload, File, Trash, Plus } from "lucide-react"
+import { ArrowLeft, Save, Plus } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
 import {
@@ -27,6 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { CommandList } from "@/components/ui/command"
+import { PeticionDocumentUploader } from "@/components/peticion-document-uploader"
 
 export default function NuevaPeticionPage() {
   const router = useRouter()
@@ -45,6 +46,7 @@ export default function NuevaPeticionPage() {
   const [nuevoTema, setNuevoTema] = useState("")
   const [isCreatingTema, setIsCreatingTema] = useState(false)
   const [asesorSearch, setAsesorSearch] = useState("")
+  const [peticionId, setPeticionId] = useState(null)
 
   const [formData, setFormData] = useState({
     // Tab 1: Información de Petición
@@ -321,6 +323,8 @@ export default function NuevaPeticionPage() {
       const { data, error } = await supabase.from("peticiones").insert(insertData).select()
 
       if (error) throw error
+
+      setPeticionId(data[0].id)
 
       // Crear relación en peticiones_clasificacion si se seleccionó una clasificación
       if (formData.clasificacion_id) {
@@ -668,40 +672,11 @@ export default function NuevaPeticionPage() {
 
               {/* Tab 3: Documentos */}
               <TabsContent value="documentos" className="space-y-6 pt-4">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                  <input
-                    type="file"
-                    id="file-upload"
-                    className="hidden"
-                    multiple
-                    onChange={handleFileUpload}
-                    disabled={isUploading}
-                  />
-                  <label htmlFor="file-upload" className="flex flex-col items-center justify-center cursor-pointer">
-                    <Upload className="h-10 w-10 text-gray-400 mb-2" />
-                    <p className="text-sm font-medium">
-                      {isUploading ? "Subiendo archivos..." : "Haga clic para subir documentos"}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">Soporta PDF, Word, Excel, imágenes y otros formatos</p>
-                  </label>
-                </div>
-
-                {uploadedFiles.length > 0 && (
-                  <div className="mt-4">
-                    <h3 className="text-sm font-medium mb-2">Documentos subidos</h3>
-                    <ul className="space-y-2">
-                      {uploadedFiles.map((file) => (
-                        <li key={file.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
-                          <div className="flex items-center">
-                            <File className="h-4 w-4 mr-2 text-blue-500" />
-                            <span className="text-sm">{file.name}</span>
-                          </div>
-                          <Button variant="ghost" size="sm" onClick={() => handleRemoveFile(file.id)}>
-                            <Trash className="h-4 w-4 text-red-500" />
-                          </Button>
-                        </li>
-                      ))}
-                    </ul>
+                {peticionId ? (
+                  <PeticionDocumentUploader peticionId={peticionId} />
+                ) : (
+                  <div className="text-center p-6 text-gray-500">
+                    <p>Guarde la petición primero para poder subir documentos.</p>
                   </div>
                 )}
               </TabsContent>

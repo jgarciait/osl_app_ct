@@ -197,18 +197,42 @@ export function DashboardCharts() {
         setMonthlyData(processedData)
       }
 
-      // Obtener el conteo de archivos en el bucket "documentos"
-      const { data: filesCount, error: filesError } = await supabase.rpc("get_storage_object_count", {
-        bucket_name: "documentos",
-      })
+      // Obtener el conteo de documentos relacionados con peticiones
+      try {
+        // Opción 1: Contar directamente desde la tabla documentos_peticiones
+        const { count, error: countError } = await supabase
+          .from("documentos_peticiones")
+          .select("*", { count: "exact", head: true })
 
-      if (filesError) {
-        console.error("Error al obtener conteo de archivos:", filesError)
-      } else {
-        // Actualizar el estado con el conteo de archivos
+        if (countError) {
+          console.error("Error al obtener conteo de documentos:", countError)
+
+          // Opción 2 (fallback): Si falla la primera opción, intentar contar archivos en el bucket
+          const { data: filesCount, error: storageError } = await supabase.rpc("get_storage_object_count", {
+            bucket_name: "documentos",
+            path_prefix: "peticiones/",
+          })
+
+          if (!storageError && filesCount && filesCount[0]) {
+            setStats((prevStats) => ({
+              ...prevStats,
+              files: filesCount[0].total_archivos || 0,
+            }))
+          } else {
+            console.error("Error al obtener conteo de archivos:", storageError)
+          }
+        } else {
+          // Usar el conteo de la tabla documentos_peticiones
+          setStats((prevStats) => ({
+            ...prevStats,
+            files: count || 0,
+          }))
+        }
+      } catch (error) {
+        console.error("Error al obtener conteo de documentos:", error)
         setStats((prevStats) => ({
           ...prevStats,
-          files: filesCount?.[0]?.total_archivos || 0,
+          files: 0,
         }))
       }
     } catch (error) {
@@ -411,7 +435,7 @@ export function DashboardCharts() {
           </CardHeader>
           <CardContent>
             <div className="text-xl sm:text-2xl font-bold">{stats.files}</div>
-            <p className="text-xs text-muted-foreground">Total de archivos en el sistema</p>
+            <p className="text-xs text-muted-foreground">Total de documentos de peticiones</p>
           </CardContent>
         </Card>
       </div>

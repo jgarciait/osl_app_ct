@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Save, Upload, File, Trash } from "lucide-react"
+import { ArrowLeft, Save } from "lucide-react"
 import Link from "next/link"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
@@ -29,6 +29,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { Check, ChevronsUpDown, Plus } from "lucide-react"
+import { PeticionDocumentUploader } from "@/components/peticion-document-uploader"
 
 export default function EditarPeticionPage({ params }) {
   const { id } = params
@@ -977,42 +978,7 @@ export default function EditarPeticionPage({ params }) {
 
               {/* Tab 3: Documentos */}
               <TabsContent value="documentos" className="space-y-6 pt-4">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                  <input
-                    type="file"
-                    id="file-upload"
-                    className="hidden"
-                    multiple
-                    onChange={handleFileUpload}
-                    disabled={isUploading}
-                  />
-                  <label htmlFor="file-upload" className="flex flex-col items-center justify-center cursor-pointer">
-                    <Upload className="h-10 w-10 text-gray-400 mb-2" />
-                    <p className="text-sm font-medium">
-                      {isUploading ? "Subiendo archivos..." : "Haga clic para subir documentos"}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">Soporta PDF, Word, Excel, imágenes y otros formatos</p>
-                  </label>
-                </div>
-
-                {uploadedFiles.length > 0 && (
-                  <div className="mt-4">
-                    <h3 className="text-sm font-medium mb-2">Documentos subidos</h3>
-                    <ul className="space-y-2">
-                      {uploadedFiles.map((file) => (
-                        <li key={file.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
-                          <div className="flex items-center">
-                            <File className="h-4 w-4 mr-2 text-blue-500" />
-                            <span className="text-sm">{file.name}</span>
-                          </div>
-                          <Button variant="ghost" size="sm" onClick={() => handleRemoveFile(file.id)}>
-                            <Trash className="h-4 w-4 text-red-500" />
-                          </Button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                <PeticionDocumentUploader peticionId={id} />
               </TabsContent>
             </Tabs>
           </CardContent>

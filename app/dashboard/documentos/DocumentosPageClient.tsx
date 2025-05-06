@@ -5,7 +5,7 @@ import { createClientClient } from "@/lib/supabase-client"
 import { DocumentosTable } from "@/components/documentos-table"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, FileText, BarChart2, Table } from "lucide-react"
+import { Loader2, FileText, BarChart2, Table, FolderOpen } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { SimpleBarChart } from "@/components/simple-bar-chart"
 
@@ -25,114 +25,73 @@ export function DocumentosPageClient() {
       try {
         setIsLoading(true)
 
-        // Obtener todos los documentos con información de expresiones
-        const { data, error } = await supabase
-          .from("documentos")
+        // Obtener documentos de la tabla documentos_peticiones
+        const { data: documentosPeticiones, error: peticionesError } = await supabase
+          .from("documentos_peticiones")
           .select(`
-          id, 
-          nombre, 
-          ruta, 
-          tipo, 
-          tamano, 
-          created_at,
-          expresion_id,
-          expresiones (
-            id,
-            numero,
-            nombre,
-            email
-          )
-        `)
+        id, 
+        nombre, 
+        ruta, 
+        tipo, 
+        tamano, 
+        created_at,
+        peticion_id,
+        peticiones (
+          id,
+          num_peticion,
+          detalles
+        )
+      `)
           .order("created_at", { ascending: false })
 
-        if (error) throw error
-
-        // Obtener el conteo directo del bucket de almacenamiento
-        const { data: storageCountData, error: storageCountError } = await supabase.rpc("get_storage_object_count", {
-          bucket_name: "documentos",
-        })
-
-        if (storageCountError) {
-          console.error("Error al obtener conteo del bucket:", storageCountError)
+        if (peticionesError) {
+          console.error("Error al obtener documentos de peticiones:", peticionesError)
+          throw peticionesError
         }
 
-        const storageCount = storageCountData?.[0]?.total_archivos || 0
+        // Obtener el conteo directo de archivos en la subcarpeta "peticiones" del bucket "documentos"
+        const { data: storageObjects, error: storageError } = await supabase.storage
+          .from("documentos")
+          .list("peticiones", {
+            sortBy: { column: "created_at", order: "desc" },
+          })
 
-        // Obtener etiquetas para cada documento
-        const documentosConEtiquetas = await Promise.all(
-          data.map(async (documento) => {
-            const { data: etiquetasData, error: etiquetasError } = await supabase
-              .from("documento_etiquetas")
-              .select(`
-              etiqueta_id,
-              etiquetas (
-                id, nombre, color
-              )
-            `)
-              .eq("documento_id", documento.id)
+        if (storageError) {
+          console.error("Error al obtener archivos del bucket:", storageError)
+        }
 
-            if (etiquetasError) {
-              console.error("Error al obtener etiquetas:", etiquetasError)
-              return {
-                ...documento,
-                etiquetas: [],
-              }
-            }
-
-            const etiquetas = etiquetasData.map((item) => ({
-              id: item.etiquetas.id,
-              nombre: item.etiquetas.nombre,
-              color: item.etiquetas.color,
-            }))
-
-            return {
-              ...documento,
-              etiquetas,
-            }
-          }),
-        )
+        const storageCount = storageObjects?.length || 0
 
         // Calcular estadísticas
-        const total = documentosConEtiquetas.length
-        const size = documentosConEtiquetas.reduce((acc, doc) => acc + (doc.tamano || 0), 0)
-
-        // Crear mapa de etiquetas para filtrado
-        const etiquetasMap = {}
-        documentosConEtiquetas.forEach((doc) => {
-          if (doc.etiquetas) {
-            doc.etiquetas.forEach((etiqueta) => {
-              etiquetasMap[etiqueta.id] = etiqueta.nombre
-            })
-          }
-        })
+        const total = documentosPeticiones.length
+        const size = documentosPeticiones.reduce((acc, doc) => acc + (doc.tamano || 0), 0)
 
         // Calcular documentos por mes
-        const monthlyData = calculateMonthlyDocuments(documentosConEtiquetas)
+        const monthlyData = calculateMonthlyDocuments(documentosPeticiones)
 
         // Obtener el conteo del mes actual
         const currentDate = new Date()
         const currentMonth = currentDate.getMonth()
         const currentYear = currentDate.getFullYear()
-        const currentMonthDocs = documentosConEtiquetas.filter((doc) => {
+        const currentMonthDocs = documentosPeticiones.filter((doc) => {
           const docDate = new Date(doc.created_at)
           return docDate.getMonth() === currentMonth && docDate.getFullYear() === currentYear
         })
 
-        setDocumentos(documentosConEtiquetas)
+        setDocumentos(documentosPeticiones)
         setTotalDocumentos(total)
         setTotalSize(size)
-        setTagMap(etiquetasMap)
         setMonthlyDocuments(monthlyData)
         setCurrentMonthCount(currentMonthDocs.length)
 
         // Log para depuración
-        console.log(`Documentos en la base de datos: ${total}`)
-        console.log(`Documentos en el bucket de almacenamiento: ${storageCount}`)
+        console.log(`Documentos de peticiones en la base de datos: ${total}`)
+        console.log(`Archivos en la subcarpeta "peticiones" del bucket: ${storageCount}`)
 
         // Si hay discrepancia, mostrar una alerta
         if (total !== storageCount) {
           console.warn(
-            `Discrepancia detectada: ${storageCount} archivos en el bucket vs ${total} registros en la base de datos`,
+            `Discrepancia detectada: ${storageCount} archivos en la subcarpeta "peticiones" vs ${total} registros en la base de datos`,
           )
           toast({
             title: "Información",
@@ -198,6 +157,11 @@ export function DocumentosPageClient() {
 
         <TabsContent value="dashboard">
           <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <FolderOpen className="h-5 w-5 text-blue-500" />
+              <h2 className="text-lg font-medium">Documentos de Peticiones</h2>
+            </div>
+
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -208,7 +172,7 @@ export function DocumentosPageClient() {
                   <div className="text-2xl font-bold">
                     {isLoading ? <Loader2 className="animate-spin" /> : totalDocumentos}
                   </div>
-                  <p className="text-xs text-muted-foreground">Documentos registrados en la base de datos</p>
+                  <p className="text-xs text-muted-foreground">Documentos de peticiones registrados</p>
                 </CardContent>
               </Card>
 
@@ -221,7 +185,7 @@ export function DocumentosPageClient() {
                   <div className="text-2xl font-bold">
                     {isLoading ? <Loader2 className="animate-spin" /> : currentMonthCount}
                   </div>
-                  <p className="text-xs text-muted-foreground">Documentos añadidos en el mes actual</p>
+                  <p className="text-xs text-muted-foreground">Documentos de peticiones añadidos este mes</p>
                 </CardContent>
               </Card>
 
@@ -234,7 +198,7 @@ export function DocumentosPageClient() {
                   <div className="text-2xl font-bold">
                     {isLoading ? <Loader2 className="animate-spin" /> : formatFileSize(totalSize)}
                   </div>
-                  <p className="text-xs text-muted-foreground">Espacio total utilizado por los documentos</p>
+                  <p className="text-xs text-muted-foreground">Espacio total de documentos de peticiones</p>
                 </CardContent>
               </Card>
 
@@ -259,7 +223,7 @@ export function DocumentosPageClient() {
             <Card>
               <CardHeader>
                 <CardTitle>Documentos por Mes</CardTitle>
-                <CardDescription>Distribución mensual de documentos añadidos al sistema</CardDescription>
+                <CardDescription>Distribución mensual de documentos de peticiones añadidos al sistema</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -279,8 +243,11 @@ export function DocumentosPageClient() {
         <TabsContent value="table">
           <Card>
             <CardHeader>
-              <CardTitle>Todos los Documentos</CardTitle>
-              <CardDescription>Lista completa de documentos almacenados en el sistema</CardDescription>
+              <div className="flex items-center gap-2">
+                <FolderOpen className="h-5 w-5 text-blue-500" />
+                <CardTitle>Documentos de Peticiones</CardTitle>
+              </div>
+              <CardDescription>Lista de documentos relacionados con peticiones</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -288,7 +255,7 @@ export function DocumentosPageClient() {
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
               ) : (
-                <DocumentosTable documentos={documentos} tagMap={tagMap} />
+                <DocumentosTable documentos={documentos} tagMap={tagMap} isPeticionesView={true} />
               )}
             </CardContent>
           </Card>

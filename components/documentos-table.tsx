@@ -29,6 +29,7 @@ import {
   FileVideo,
   FileIcon as FilePdf,
   FileCode,
+  ExternalLink,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -70,12 +71,14 @@ const getFileIcon = (fileType) => {
   return <FileText className="h-4 w-4" />
 }
 
+// Actualizar la interfaz DocumentosTableProps para incluir la propiedad isPeticionesView
 interface DocumentosTableProps {
   documentos: any[]
   tagMap?: Record<string, string>
+  isPeticionesView?: boolean
 }
 
-export function DocumentosTable({ documentos, tagMap = {} }: DocumentosTableProps) {
+export function DocumentosTable({ documentos, tagMap = {}, isPeticionesView = false }: DocumentosTableProps) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
@@ -131,8 +134,11 @@ export function DocumentosTable({ documentos, tagMap = {} }: DocumentosTableProp
     return tags
   }, [documentos])
 
-  const columns: ColumnDef<any>[] = useMemo(
-    () => [
+  // Actualizar la definición de columnas para manejar correctamente los documentos de peticiones
+  // Reemplazar la definición de columns con esta implementación:
+  const columns: ColumnDef<any>[] = useMemo(() => {
+    // Columnas base que siempre se muestran
+    const baseColumns = [
       {
         accessorKey: "nombre",
         header: ({ column }) => {
@@ -157,73 +163,6 @@ export function DocumentosTable({ documentos, tagMap = {} }: DocumentosTableProp
               <span className="font-medium">{nombre}</span>
             </div>
           )
-        },
-      },
-      {
-        accessorKey: "expresiones.numero",
-        header: "Expresión",
-        cell: ({ row }) => {
-          const expresion = row.original.expresiones
-          if (!expresion) return <span className="text-gray-400 text-xs">No asociado</span>
-
-          return (
-            <div className="flex flex-col">
-              <span className="font-medium">{expresion.numero}</span>
-              <span className="text-xs text-gray-500 truncate max-w-[200px]">{expresion.nombre}</span>
-            </div>
-          )
-        },
-      },
-      {
-        id: "etiquetas",
-        header: "Etiquetas",
-        cell: ({ row }) => {
-          const etiquetas = row.original.etiquetas || []
-
-          if (etiquetas.length === 0) {
-            return <span className="text-gray-400 text-xs">Sin etiquetas</span>
-          }
-
-          return (
-            <div className="flex flex-wrap gap-1 max-w-[200px]">
-              {etiquetas.slice(0, 3).map((etiqueta) => (
-                <Badge
-                  key={etiqueta.id}
-                  variant="outline"
-                  className="flex items-center gap-1 bg-gray-100"
-                  style={{
-                    borderColor: etiqueta.color || "#cfcfcf",
-                    color: "#1a365d",
-                  }}
-                >
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: etiqueta.color || "#cfcfcf" }}
-                    aria-hidden="true"
-                  ></span>
-                  {etiqueta.nombre}
-                </Badge>
-              ))}
-              {etiquetas.length > 3 && (
-                <Badge variant="outline" className="bg-gray-100">
-                  +{etiquetas.length - 3}
-                </Badge>
-              )}
-            </div>
-          )
-        },
-        filterFn: (row, id, filterValue) => {
-          // Si no hay valores de filtro, devolver true
-          if (!filterValue || filterValue.length === 0) return true
-
-          // Obtener las etiquetas del documento
-          const etiquetas = row.original.etiquetas || []
-
-          // Si no hay etiquetas, devolver false
-          if (etiquetas.length === 0) return false
-
-          // Comprobar si alguna de las etiquetas coincide con los valores de filtro
-          return filterValue.some((filter) => etiquetas.some((etiqueta) => etiqueta.id === filter))
         },
       },
       {
@@ -322,22 +261,145 @@ export function DocumentosTable({ documentos, tagMap = {} }: DocumentosTableProp
                 <Download className="mr-2 h-4 w-4" />
                 Descargar
               </DropdownMenuItem>
+              {isPeticionesView && row.original.peticion_id && (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    router.push(`/dashboard/peticiones/${row.original.peticion_id}/ver`)
+                  }}
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Ver Petición
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         ),
       },
-    ],
-    [canManageDocuments, canViewDocuments],
-  )
+    ]
+
+    // Si estamos en la vista de peticiones, añadimos la columna de petición
+    if (isPeticionesView) {
+      return [
+        ...baseColumns.slice(0, 1),
+        {
+          accessorKey: "peticiones.num_peticion",
+          header: "Petición",
+          cell: ({ row }) => {
+            const peticion = row.original.peticiones
+            if (!peticion) return <span className="text-gray-400 text-xs">No asociado</span>
+
+            return (
+              <div className="flex flex-col">
+                <span className="font-medium">{peticion.num_peticion}</span>
+                <span className="text-xs text-gray-500 truncate max-w-[200px]">{peticion.detalles}</span>
+              </div>
+            )
+          },
+        },
+        ...baseColumns.slice(1),
+      ]
+    } else {
+      // Si estamos en la vista normal, añadimos la columna de expresión
+      return [
+        ...baseColumns.slice(0, 1),
+        {
+          accessorKey: "expresiones.numero",
+          header: "Expresión",
+          cell: ({ row }) => {
+            const expresion = row.original.expresiones
+            if (!expresion) return <span className="text-gray-400 text-xs">No asociado</span>
+
+            return (
+              <div className="flex flex-col">
+                <span className="font-medium">{expresion.numero}</span>
+                <span className="text-xs text-gray-500 truncate max-w-[200px]">{expresion.nombre}</span>
+              </div>
+            )
+          },
+        },
+        {
+          id: "etiquetas",
+          header: "Etiquetas",
+          cell: ({ row }) => {
+            const etiquetas = row.original.etiquetas || []
+
+            if (etiquetas.length === 0) {
+              return <span className="text-gray-400 text-xs">Sin etiquetas</span>
+            }
+
+            return (
+              <div className="flex flex-wrap gap-1 max-w-[200px]">
+                {etiquetas.slice(0, 3).map((etiqueta) => (
+                  <Badge
+                    key={etiqueta.id}
+                    variant="outline"
+                    className="flex items-center gap-1 bg-gray-100"
+                    style={{
+                      borderColor: etiqueta.color || "#cfcfcf",
+                      color: "#1a365d",
+                    }}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: etiqueta.color || "#cfcfcf" }}
+                      aria-hidden="true"
+                    ></span>
+                    {etiqueta.nombre}
+                  </Badge>
+                ))}
+                {etiquetas.length > 3 && (
+                  <Badge variant="outline" className="bg-gray-100">
+                    +{etiquetas.length - 3}
+                  </Badge>
+                )}
+              </div>
+            )
+          },
+          filterFn: (row, id, filterValue) => {
+            // Si no hay valores de filtro, devolver true
+            if (!filterValue || filterValue.length === 0) return true
+
+            // Obtener las etiquetas del documento
+            const etiquetas = row.original.etiquetas || []
+
+            // Si no hay etiquetas, devolver false
+            if (etiquetas.length === 0) return false
+
+            // Comprobar si alguna de las etiquetas coincide con los valores de filtro
+            return filterValue.some((filter) => etiquetas.some((etiqueta) => etiqueta.id === filter))
+          },
+        },
+        ...baseColumns.slice(1),
+      ]
+    }
+  }, [canManageDocuments, canViewDocuments, isPeticionesView, router])
+
+  // Modificar la función handleViewDocument para manejar correctamente las rutas de los documentos
+  // Reemplazar la función handleViewDocument con esta implementación:
 
   const handleViewDocument = async (doc) => {
     try {
       setIsLoading(true)
 
-      // Obtener la URL pública del documento
-      const { data, error } = await supabase.storage.from("documentos").createSignedUrl(doc.ruta, 60) // URL válida por 60 segundos
+      // Construir la ruta completa según si es un documento de peticiones o no
+      let rutaCompleta = doc.ruta
 
-      if (error) throw error
+      // Si la ruta no comienza con 'peticiones/' y estamos en la vista de peticiones,
+      // añadimos el prefijo
+      if (isPeticionesView && !rutaCompleta.startsWith("peticiones/")) {
+        rutaCompleta = `peticiones/${rutaCompleta}`
+      }
+
+      console.log("Intentando acceder al documento con ruta:", rutaCompleta)
+
+      // Obtener la URL pública del documento
+      const { data, error } = await supabase.storage.from("documentos").createSignedUrl(rutaCompleta, 60)
+
+      if (error) {
+        console.error("Error al crear URL firmada:", error)
+        throw error
+      }
 
       // Abrir el documento en una nueva pestaña
       window.open(data.signedUrl, "_blank")
@@ -346,21 +408,38 @@ export function DocumentosTable({ documentos, tagMap = {} }: DocumentosTableProp
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudo visualizar el documento. Por favor, intente nuevamente.",
+        description: `No se pudo visualizar el documento: ${error.message || "Error desconocido"}`,
       })
     } finally {
       setIsLoading(false)
     }
   }
 
+  // Modificar también la función handleDownloadDocument para mantener la consistencia
+  // Reemplazar la función handleDownloadDocument con esta implementación:
+
   const handleDownloadDocument = async (doc) => {
     try {
       setIsLoading(true)
 
-      // Obtener la URL pública del documento
-      const { data, error } = await supabase.storage.from("documentos").createSignedUrl(doc.ruta, 60)
+      // Construir la ruta completa según si es un documento de peticiones o no
+      let rutaCompleta = doc.ruta
 
-      if (error) throw error
+      // Si la ruta no comienza con 'peticiones/' y estamos en la vista de peticiones,
+      // añadimos el prefijo
+      if (isPeticionesView && !rutaCompleta.startsWith("peticiones/")) {
+        rutaCompleta = `peticiones/${rutaCompleta}`
+      }
+
+      console.log("Intentando descargar el documento con ruta:", rutaCompleta)
+
+      // Obtener la URL pública del documento
+      const { data, error } = await supabase.storage.from("documentos").createSignedUrl(rutaCompleta, 60)
+
+      if (error) {
+        console.error("Error al crear URL firmada:", error)
+        throw error
+      }
 
       // Usar fetch para obtener el contenido del archivo como Blob
       const response = await fetch(data.signedUrl)
@@ -395,13 +474,15 @@ export function DocumentosTable({ documentos, tagMap = {} }: DocumentosTableProp
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudo descargar el documento. Por favor, intente nuevamente.",
+        description: `No se pudo descargar el documento: ${error.message || "Error desconocido"}`,
       })
     } finally {
       setIsLoading(false)
     }
   }
 
+  // Actualizar la función confirmDelete para manejar correctamente la eliminación de documentos de peticiones
+  // Reemplazar la función confirmDelete con esta implementación:
   const confirmDelete = async () => {
     if (!documentToDelete) return
 
@@ -418,23 +499,36 @@ export function DocumentosTable({ documentos, tagMap = {} }: DocumentosTableProp
         }
       }
 
-      // Eliminar las relaciones con etiquetas
-      const { error: tagsError } = await supabase
-        .from("documento_etiquetas")
-        .delete()
-        .eq("documento_id", documentToDelete.id)
+      // Eliminar el registro del documento de la base de datos
+      let deleteError
 
-      if (tagsError) {
-        console.error("Error eliminando etiquetas del documento:", tagsError)
-        throw tagsError
+      if (isPeticionesView) {
+        // Si estamos en la vista de peticiones, eliminamos de la tabla documentos_peticiones
+        const { error } = await supabase.from("documentos_peticiones").delete().eq("id", documentToDelete.id)
+
+        deleteError = error
+      } else {
+        // Si estamos en la vista normal, eliminamos de la tabla documentos
+        // Primero eliminamos las relaciones con etiquetas
+        const { error: tagsError } = await supabase
+          .from("documento_etiquetas")
+          .delete()
+          .eq("documento_id", documentToDelete.id)
+
+        if (tagsError) {
+          console.error("Error eliminando etiquetas del documento:", tagsError)
+          throw tagsError
+        }
+
+        // Eliminar el registro del documento de la base de datos
+        const { error: docDeleteError } = await supabase.from("documentos").delete().eq("id", documentToDelete.id)
+
+        deleteError = docDeleteError
       }
 
-      // Eliminar el registro del documento de la base de datos
-      const { error: docDeleteError } = await supabase.from("documentos").delete().eq("id", documentToDelete.id)
-
-      if (docDeleteError) {
-        console.error("Error eliminando documento:", docDeleteError)
-        throw docDeleteError
+      if (deleteError) {
+        console.error("Error eliminando documento:", deleteError)
+        throw deleteError
       }
 
       toast({
@@ -458,6 +552,8 @@ export function DocumentosTable({ documentos, tagMap = {} }: DocumentosTableProp
     }
   }
 
+  // Actualizar la función globalFilterFn para manejar correctamente la búsqueda en documentos de peticiones
+  // Reemplazar la función globalFilterFn con esta implementación:
   const table = useReactTable({
     data: documentos,
     columns,
@@ -472,16 +568,30 @@ export function DocumentosTable({ documentos, tagMap = {} }: DocumentosTableProp
 
       // Check multiple fields for the search term
       const nombre = String(row.getValue("nombre") || "").toLowerCase()
-      const expresionNumero = row.original.expresiones?.numero?.toLowerCase() || ""
-      const expresionNombre = row.original.expresiones?.nombre?.toLowerCase() || ""
-      const tipo = String(row.getValue("tipo") || "").toLowerCase()
 
-      return (
-        nombre.includes(searchValue) ||
-        expresionNumero.includes(searchValue) ||
-        expresionNombre.includes(searchValue) ||
-        tipo.includes(searchValue)
-      )
+      if (isPeticionesView) {
+        const peticionNumero = row.original.peticiones?.num_peticion?.toLowerCase() || ""
+        const peticionDetalles = row.original.peticiones?.detalles?.toLowerCase() || ""
+        const tipo = String(row.getValue("tipo") || "").toLowerCase()
+
+        return (
+          nombre.includes(searchValue) ||
+          peticionNumero.includes(searchValue) ||
+          peticionDetalles.includes(searchValue) ||
+          tipo.includes(searchValue)
+        )
+      } else {
+        const expresionNumero = row.original.expresiones?.numero?.toLowerCase() || ""
+        const expresionNombre = row.original.expresiones?.nombre?.toLowerCase() || ""
+        const tipo = String(row.getValue("tipo") || "").toLowerCase()
+
+        return (
+          nombre.includes(searchValue) ||
+          expresionNumero.includes(searchValue) ||
+          expresionNombre.includes(searchValue) ||
+          tipo.includes(searchValue)
+        )
+      }
     },
     state: {
       sorting,

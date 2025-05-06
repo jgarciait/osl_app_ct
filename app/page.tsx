@@ -17,7 +17,7 @@ export default function Home() {
           throw error
         }
 
-        if (data.session) {
+        if (data && data.session) {
           router.push("/dashboard")
         } else {
           router.push("/login")

@@ -7,7 +7,6 @@ import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import { ZoomIn, ZoomOut, RefreshCw } from "lucide-react"
 import ForceGraph2D from "react-force-graph-2d"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // Definir tipos para los nodos y enlaces
 interface GraphNode {
@@ -29,164 +28,188 @@ interface GraphData {
   links: GraphLink[]
 }
 
-export function InteractiveGraph() {
+interface InteractiveGraphProps {
+  relationshipType?: "asesores" | "legisladores" | "temas" | "clasificaciones"
+}
+
+export function InteractiveGraph({ relationshipType = "asesores" }: InteractiveGraphProps) {
   const [data, setData] = useState<GraphData>({ nodes: [], links: [] })
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<string>("all")
   const { toast } = useToast()
   const graphRef = useRef<any>(null)
 
   // Colores para diferentes tipos de nodos
   const nodeColors = {
-    expresion: "#1a365d",
-    persona: "#2563eb",
-    tema: "#10b981",
-    comite: "#f59e0b",
-    etiqueta: "#8b5cf6",
+    peticion: "#1a365d",
+    asesor: "#2563eb",
+    legislador: "#10b981",
+    tema: "#f59e0b",
+    clasificacion: "#8b5cf6",
   }
 
   useEffect(() => {
     fetchGraphData()
-  }, [filter])
+  }, [relationshipType])
 
   const fetchGraphData = async () => {
     try {
       setLoading(true)
       const supabase = createClientClient()
-
-      // 1. Obtener expresiones básicas con las columnas correctas
-      const { data: expresiones, error: expresionesError } = await supabase
-        .from("expresiones")
-        .select("id, nombre, email, propuesta, numero")
-
-      if (expresionesError) throw expresionesError
-
-      // 2. Obtener relaciones entre expresiones y temas
-      const { data: expresionTemas, error: temasError } = await supabase.from("expresion_temas").select(`
-          expresion_id,
-          tema:tema_id (
-            id, 
-            nombre
-          )
-        `)
-
-      if (temasError) throw temasError
-
-      // 3. Obtener relaciones entre expresiones y comités
-      const { data: expresionComites, error: comitesError } = await supabase.from("expresion_comites").select(`
-          expresion_id,
-          comite:comite_id (
-            id, 
-            nombre
-          )
-        `)
-
-      if (comitesError) throw comitesError
-
-      // 4. Obtener etiquetas (si existe una relación con etiquetas)
-      const { data: etiquetas, error: etiquetasError } = await supabase.from("documento_etiquetas").select(`
-          documento_id,
-          etiqueta:etiqueta_id (
-            id,
-            nombre
-          )
-        `)
-
-      if (etiquetasError && etiquetasError.code !== "PGRST116") {
-        // PGRST116 significa que la tabla no existe, lo cual es aceptable
-        throw etiquetasError
-      }
-
-      // Preparar nodos y enlaces
       const nodes: GraphNode[] = []
       const links: GraphLink[] = []
       const nodeMap = new Map<string, boolean>()
 
       // Función para añadir nodo si no existe
       const addNodeIfNotExists = (id: string, name: string, type: string) => {
+        if (!id) return null // Evitar nodos con ID nulo
         const nodeId = `${type}-${id}`
         if (!nodeMap.has(nodeId)) {
           nodeMap.set(nodeId, true)
           nodes.push({
             id: nodeId,
-            name: name,
+            name: name || `${type} ${id.substring(0, 8)}`,
             type: type,
-            val: type === "expresion" ? 3 : 2,
+            val: type === "peticion" ? 3 : 5,
             color: nodeColors[type as keyof typeof nodeColors] || "#999",
           })
         }
         return nodeId
       }
 
-      // Procesar expresiones
-      expresiones.forEach((expresion) => {
-        // Añadir nodo de expresión - Usar número o ID como identificador
-        const expresionNodeId = addNodeIfNotExists(
-          expresion.id,
-          expresion.numero ? `Expresión #${expresion.numero}` : `Expresión ${expresion.id.substring(0, 8)}`,
-          "expresion",
+      // 1. Obtener todas las peticiones
+      const { data: peticiones, error: peticionesError } = await supabase.from("peticiones").select("id, num_peticion")
+
+      if (peticionesError) throw peticionesError
+
+      // Añadir nodos de peticiones
+      peticiones.forEach((peticion) => {
+        addNodeIfNotExists(
+          peticion.id,
+          peticion.num_peticion ? `Petición #${peticion.num_peticion}` : `Petición ${peticion.id.substring(0, 8)}`,
+          "peticion",
         )
-
-        // Añadir nodo de autor y enlace
-        if (expresion.nombre && expresion.email) {
-          const autorNodeId = addNodeIfNotExists(expresion.email, expresion.nombre, "persona")
-          links.push({ source: autorNodeId, target: expresionNodeId, value: 1 })
-        }
       })
 
-      // Procesar relaciones con temas
-      expresionTemas?.forEach((relacion) => {
-        if (relacion.tema && relacion.expresion_id) {
-          const expresionNodeId = `expresion-${relacion.expresion_id}`
-          const temaNodeId = addNodeIfNotExists(relacion.tema.id, relacion.tema.nombre, "tema")
+      // 2. Obtener relaciones según el tipo seleccionado
+      if (relationshipType === "asesores") {
+        // Obtener relaciones peticiones-asesores
+        const { data: peticionesAsesores, error: asesoresError } = await supabase.from("peticiones_asesores").select(`
+            peticiones_id,
+            asesores_id,
+            asesores:asesores_id (id, name)
+          `)
 
-          if (nodeMap.has(expresionNodeId)) {
-            links.push({ source: temaNodeId, target: expresionNodeId, value: 1 })
+        if (asesoresError) throw asesoresError
+
+        // Procesar relaciones peticiones-asesores
+        peticionesAsesores?.forEach((relacion) => {
+          if (relacion.asesores && relacion.peticiones_id) {
+            const peticionNodeId = `peticion-${relacion.peticiones_id}`
+            const asesorNodeId = addNodeIfNotExists(
+              relacion.asesores_id,
+              relacion.asesores.name || `Asesor ${relacion.asesores_id.substring(0, 8)}`,
+              "asesor",
+            )
+
+            if (asesorNodeId && nodeMap.has(peticionNodeId)) {
+              links.push({ source: asesorNodeId, target: peticionNodeId, value: 1 })
+            }
           }
-        }
-      })
+        })
+      } else if (relationshipType === "legisladores") {
+        // Obtener relaciones peticiones-legisladores
+        const { data: peticionesLegisladores, error: legisladoresError } = await supabase
+          .from("peticiones_legisladores")
+          .select(`
+            peticiones_id,
+            legisladoresPeticion_id,
+            legisladores:legisladoresPeticion_id (id, nombre)
+          `)
 
-      // Procesar relaciones con comités
-      expresionComites?.forEach((relacion) => {
-        if (relacion.comite && relacion.expresion_id) {
-          const expresionNodeId = `expresion-${relacion.expresion_id}`
-          const comiteNodeId = addNodeIfNotExists(relacion.comite.id, relacion.comite.nombre, "comite")
+        if (legisladoresError) throw legisladoresError
 
-          if (nodeMap.has(expresionNodeId)) {
-            links.push({ source: comiteNodeId, target: expresionNodeId, value: 1 })
+        // Procesar relaciones peticiones-legisladores
+        peticionesLegisladores?.forEach((relacion) => {
+          if (relacion.legisladores && relacion.peticiones_id) {
+            const peticionNodeId = `peticion-${relacion.peticiones_id}`
+            const legisladorNodeId = addNodeIfNotExists(
+              relacion.legisladoresPeticion_id,
+              relacion.legisladores.nombre || `Legislador ${relacion.legisladoresPeticion_id.substring(0, 8)}`,
+              "legislador",
+            )
+
+            if (legisladorNodeId && nodeMap.has(peticionNodeId)) {
+              links.push({ source: legisladorNodeId, target: peticionNodeId, value: 1 })
+            }
           }
-        }
-      })
+        })
+      } else if (relationshipType === "temas") {
+        // Obtener relaciones peticiones-temas
+        // Corregido para usar la estructura correcta de la base de datos
+        const { data: peticionesTemas, error: temasError } = await supabase.from("peticiones_temas").select(`
+            peticiones_id,
+            temasPeticiones_id,
+            temas:temasPeticiones_id (id, nombre)
+          `)
 
-      // Procesar etiquetas (si existen)
-      etiquetas?.forEach((relacion) => {
-        if (relacion.etiqueta && relacion.documento_id) {
-          const expresionNodeId = `expresion-${relacion.documento_id}`
-          const etiquetaNodeId = addNodeIfNotExists(relacion.etiqueta.id, relacion.etiqueta.nombre, "etiqueta")
+        if (temasError) throw temasError
 
-          if (nodeMap.has(expresionNodeId)) {
-            links.push({ source: etiquetaNodeId, target: expresionNodeId, value: 1 })
+        // Procesar relaciones peticiones-temas
+        peticionesTemas?.forEach((relacion) => {
+          if (relacion.temas && relacion.peticiones_id) {
+            const peticionNodeId = `peticion-${relacion.peticiones_id}`
+            const temaNodeId = addNodeIfNotExists(
+              relacion.temasPeticiones_id,
+              relacion.temas.nombre || `Tema ${relacion.temasPeticiones_id.substring(0, 8)}`,
+              "tema",
+            )
+
+            if (temaNodeId && nodeMap.has(peticionNodeId)) {
+              links.push({ source: temaNodeId, target: peticionNodeId, value: 1 })
+            }
           }
-        }
-      })
+        })
+      } else if (relationshipType === "clasificaciones") {
+        // Obtener relaciones peticiones-clasificaciones
+        const { data: peticionesClasificaciones, error: clasificacionesError } = await supabase
+          .from("peticiones_clasificacion")
+          .select(`
+            peticiones_id,
+            clasificaciones_id,
+            clasificaciones:clasificaciones_id (id, nombre)
+          `)
 
-      // Filtrar nodos y enlaces según el filtro seleccionado
-      let filteredNodes = nodes
-      let filteredLinks = links
+        if (clasificacionesError) throw clasificacionesError
 
-      if (filter !== "all") {
-        filteredNodes = nodes.filter((node) => node.type === filter || node.type === "expresion")
+        // Procesar relaciones peticiones-clasificaciones
+        peticionesClasificaciones?.forEach((relacion) => {
+          if (relacion.clasificaciones && relacion.peticiones_id) {
+            const peticionNodeId = `peticion-${relacion.peticiones_id}`
+            const clasificacionNodeId = addNodeIfNotExists(
+              relacion.clasificaciones_id,
+              relacion.clasificaciones.nombre || `Clasificación ${relacion.clasificaciones_id.substring(0, 8)}`,
+              "clasificacion",
+            )
 
-        const filteredNodeIds = new Set(filteredNodes.map((node) => node.id))
-
-        filteredLinks = links.filter(
-          (link) => filteredNodeIds.has(link.source as string) && filteredNodeIds.has(link.target as string),
-        )
+            if (clasificacionNodeId && nodeMap.has(peticionNodeId)) {
+              links.push({ source: clasificacionNodeId, target: peticionNodeId, value: 1 })
+            }
+          }
+        })
       }
 
+      // Filtrar enlaces para asegurarse de que ambos nodos existen
+      const validLinks = links.filter(
+        (link) =>
+          typeof link.source === "string" &&
+          typeof link.target === "string" &&
+          nodeMap.has(link.source) &&
+          nodeMap.has(link.target),
+      )
+
       setData({
-        nodes: filteredNodes,
-        links: filteredLinks,
+        nodes: nodes,
+        links: validLinks,
       })
     } catch (error) {
       console.error("Error al cargar datos del grafo:", error)
@@ -237,26 +260,40 @@ export function InteractiveGraph() {
     return () => window.removeEventListener("resize", measure)
   }, [])
 
+  // Determinar el título según el tipo de relación
+  const getTitle = () => {
+    switch (relationshipType) {
+      case "asesores":
+        return "Peticiones por Asesor"
+      case "legisladores":
+        return "Peticiones por Legislador"
+      case "temas":
+        return "Peticiones por Tema"
+      case "clasificaciones":
+        return "Peticiones por Clasificación"
+      default:
+        return "Vista de Grafo Interactivo"
+    }
+  }
+
   return (
     <Card className="overflow-hidden flex flex-col h-full">
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle>Vista de Grafo Interactivo</CardTitle>
-            <CardDescription>Explora las conexiones entre expresiones, personas y referidos</CardDescription>
+            <CardTitle>{getTitle()}</CardTitle>
+            <CardDescription>
+              Explora las conexiones entre peticiones y{" "}
+              {relationshipType === "asesores"
+                ? "asesores"
+                : relationshipType === "legisladores"
+                  ? "legisladores"
+                  : relationshipType === "temas"
+                    ? "temas"
+                    : "clasificaciones"}
+            </CardDescription>
           </div>
           <div className="flex items-center gap-2">
-            <Select value={filter} onValueChange={setFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filtrar por tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los nodos</SelectItem>
-                <SelectItem value="persona">Personas</SelectItem>
-
-                <SelectItem value="comite">Referidos</SelectItem>
-              </SelectContent>
-            </Select>
             <Button variant="outline" size="icon" onClick={handleZoomIn}>
               <ZoomIn className="h-4 w-4" />
             </Button>
