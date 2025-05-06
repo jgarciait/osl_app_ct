@@ -13,7 +13,6 @@ import {
   LogOut,
   Home,
   BarChart,
-  Tag,
   BookOpen,
   UserCog,
   Folder,
@@ -164,13 +163,7 @@ export function AppSidebar() {
       isActive: pathname === "/dashboard/clasificaciones",
       permission: { resource: "classifications", action: "view" },
     },
-    {
-      title: "Etiquetas",
-      icon: Tag,
-      href: "/dashboard/etiquetas",
-      isActive: pathname === "/dashboard/etiquetas",
-      permission: { resource: "tags", action: "view" },
-    },
+    // Se ha eliminado la sección de Etiquetas
     {
       title: "Reportes",
       icon: BarChart,
