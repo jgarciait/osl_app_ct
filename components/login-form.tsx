@@ -4,10 +4,12 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClientClient } from "@/lib/supabase-client"
+import { FadeIn, AnimatedButton } from "@/components/ui/animated-components"
+import { Loader2 } from "lucide-react"
+import Link from "next/link"
 
 export function LoginForm({ isLoggedIn = false }) {
   const [email, setEmail] = useState("")
@@ -51,9 +53,9 @@ export function LoginForm({ isLoggedIn = false }) {
 
   return (
     <div className="grid gap-6">
-      <form onSubmit={handleSubmit}>
-        <div className="grid gap-4">
-          <div className="grid gap-2">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <FadeIn delay={0.1}>
+          <div className="space-y-2">
             <Label htmlFor="email">Correo electrónico</Label>
             <Input
               id="email"
@@ -68,8 +70,16 @@ export function LoginForm({ isLoggedIn = false }) {
               required
             />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="password">Contraseña</Label>
+        </FadeIn>
+
+        <FadeIn delay={0.2}>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Contraseña</Label>
+              <Link href="/forgot-password" className="text-sm text-muted-foreground hover:underline">
+                ¿Olvidó su contraseña?
+              </Link>
+            </div>
             <Input
               id="password"
               placeholder="********"
@@ -81,10 +91,20 @@ export function LoginForm({ isLoggedIn = false }) {
               required
             />
           </div>
-          <Button disabled={isLoading} type="submit">
-            {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
-          </Button>
-        </div>
+        </FadeIn>
+
+        <FadeIn delay={0.3}>
+          <AnimatedButton type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? (
+              <div className="flex items-center justify-center">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Iniciando sesión...
+              </div>
+            ) : (
+              "Iniciar sesión"
+            )}
+          </AnimatedButton>
+        </FadeIn>
       </form>
       {error && <p className="text-sm text-red-500">{error}</p>}
     </div>

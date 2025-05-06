@@ -62,6 +62,7 @@
     "@tiptap/pm": "latest",
     "jspdf": "latest",
     "@supabase/supabase-js": "latest",
+    "@emotion/is-prop-valid": "latest",
     "@tanstack/react-table": "latest",
     "@radix-ui/react-icons": "latest",
     "@tiptap/react": "latest",
@@ -74,7 +75,8 @@
     "xlsx": "latest",
     "react-force-graph-2d": "latest",
     "@supabase/ssr": "latest",
-    "@supabase/auth-helpers-nextjs": "latest"
+    "@supabase/auth-helpers-nextjs": "latest",
+    "framer-motion": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

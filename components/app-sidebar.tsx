@@ -6,20 +6,7 @@ import Link from "next/link"
 import { createClientClient } from "@/lib/supabase-client"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
-import {
-  FileText,
-  Landmark,
-  Settings,
-  LogOut,
-  Home,
-  BarChart,
-  BookOpen,
-  UserCog,
-  Folder,
-  Bug,
-  RefreshCw,
-  ClipboardList,
-} from "lucide-react"
+import { FileText, Landmark, Settings, LogOut, Home, BookOpen, UserCog, Folder } from "lucide-react"
 import Image from "next/image"
 import { createContext, useContext, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
@@ -164,27 +151,9 @@ export function AppSidebar() {
       permission: { resource: "classifications", action: "view" },
     },
     // Se ha eliminado la sección de Etiquetas
-    {
-      title: "Reportes",
-      icon: BarChart,
-      href: "/dashboard/reportes",
-      isActive: pathname === "/dashboard/reportes",
-      permission: { resource: "reports", action: "view" },
-    },
-    {
-      title: "Bugs",
-      icon: Bug,
-      href: "/dashboard/bugs",
-      isActive: pathname === "/dashboard/bugs" || pathname.startsWith("/dashboard/bugs/"),
-      // Todos los usuarios pueden reportar bugs
-    },
-    {
-      title: "Updates",
-      icon: RefreshCw,
-      href: "https://www.notion.so/1d04d385c26180da9147c0310f69509a?v=1d04d385c261801a9580000ce789446b&pvs=4",
-      isActive: false,
-      isExternal: true, // Indica que es un enlace externo
-    },
+    // Se ha eliminado la sección de Reportes
+    // Se ha eliminado la sección de Bugs
+    // Se ha eliminado la sección de Updates
     {
       title: "Configuración",
       icon: Settings,
@@ -206,13 +175,7 @@ export function AppSidebar() {
       isActive: pathname === "/dashboard/documentos",
       permission: { resource: "documents", action: "view" },
     },
-    {
-      title: "Auditoría",
-      icon: ClipboardList,
-      href: "/dashboard/audit_trail",
-      isActive: pathname === "/dashboard/audit_trail",
-      permission: { resource: "audit_trail", action: "view" }, // Permiso específico para ver auditoría
-    },
+    // Se ha eliminado la sección de Auditoría
   ]
 
   // En dispositivos móviles, ocultar el sidebar si no está expandido
