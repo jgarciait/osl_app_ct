@@ -7,8 +7,8 @@ import { ThemeProvider } from "@/components/theme-provider"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
-  title: "Sistema de Expresiones Legislativas",
-  description: "Sistema para gestionar expresiones legislativas de ciudadanos",
+  title: "Sistema de Consultoría Técnica",
+  description: "Sistema de gestión documental de opiniones legales, proyectos, informes, investigaciones, resoluciones, mociones y otros productos técnicos.",
   generator: "v0.dev",
 }
 
