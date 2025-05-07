@@ -26,7 +26,10 @@ export function SimpleBarChart({ data, height = 350 }: SimpleBarChartProps) {
     return (
       <div className="flex h-full items-center justify-center flex-col">
         <p className="text-red-500">No hay datos disponibles para mostrar</p>
-        <p className="text-xs text-gray-500 mt-2">Datos recibidos: {JSON.stringify(data)}</p>
+        {/* No mostrar datos técnicos en producción */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="text-xs text-muted-foreground mt-4 hidden">Datos recibidos: {JSON.stringify(data)}</div>
+        )}
       </div>
     )
   }

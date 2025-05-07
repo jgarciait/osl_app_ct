@@ -1,5 +1,7 @@
 "use client"
 
+import { Button } from "@/components/ui/button"
+
 import { useState, useEffect, useRef } from "react"
 import { createClientClient, cachedQuery } from "@/lib/supabase-client"
 import { PeticionesTable } from "@/components/peticiones-table"
@@ -26,44 +28,44 @@ export default function PeticionesPage() {
     subscriptions.current = []
   }
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true)
+  // Función para cargar datos
+  const fetchData = async () => {
+    try {
+      setIsLoading(true)
 
-        // Obtener todas las etiquetas y crear un mapa de ID a nombre
-        const { data: etiquetas, error: etiquetasError } = await supabase.from("etiquetas").select("id, nombre, color")
+      // Obtener todas las etiquetas y crear un mapa de ID a nombre
+      const { data: etiquetas, error: etiquetasError } = await supabase.from("etiquetas").select("id, nombre, color")
 
-        if (etiquetasError) {
-          console.error("Error al obtener etiquetas:", etiquetasError)
-          throw etiquetasError
-        }
+      if (etiquetasError) {
+        console.error("Error al obtener etiquetas:", etiquetasError)
+        throw etiquetasError
+      }
 
-        // Crear un mapa de ID a nombre de etiqueta
-        const etiquetasMap = {}
-        etiquetas.forEach((etiqueta) => {
-          etiquetasMap[etiqueta.id] = etiqueta.nombre
-        })
+      // Crear un mapa de ID a nombre de etiqueta
+      const etiquetasMap = {}
+      etiquetas.forEach((etiqueta) => {
+        etiquetasMap[etiqueta.id] = etiqueta.nombre
+      })
 
-        // Guardar el mapa de etiquetas
-        setTagMap(etiquetasMap)
+      // Guardar el mapa de etiquetas
+      setTagMap(etiquetasMap)
 
-        // Obtener los perfiles de usuarios con caché
-        const profiles = await cachedQuery("profiles", () => supabase.from("profiles").select("id, nombre, apellido"))
+      // Obtener los perfiles de usuarios con caché
+      const profiles = await cachedQuery("profiles", () => supabase.from("profiles").select("id, nombre, apellido"))
 
-        // Obtener los temas con caché
-        const temas = await cachedQuery("temas", () => supabase.from("temas").select("id, nombre"))
+      // Obtener los temas con caché
+      const temas = await cachedQuery("temas", () => supabase.from("temas").select("id, nombre"))
 
-        // Crear un mapa de IDs de usuario a nombres completos
-        const userMap = new Map()
-        profiles?.data?.forEach((profile) => {
-          userMap.set(profile.id, `${profile.nombre} ${profile.apellido}`)
-        })
+      // Crear un mapa de IDs de usuario a nombres completos
+      const userMap = new Map()
+      profiles?.data?.forEach((profile) => {
+        userMap.set(profile.id, `${profile.nombre} ${profile.apellido}`)
+      })
 
-        // Obtener las peticiones con sus relaciones
-        const { data, error } = await supabase
-          .from("peticiones")
-          .select(`
+      // Obtener las peticiones con sus relaciones
+      const { data, error } = await supabase
+        .from("peticiones")
+        .select(`
 id, 
 clasificacion,
 year, 
@@ -90,58 +92,59 @@ peticiones_asesores(
   asesores(id, name, color)
 )
 `)
-          .order("created_at", { ascending: false })
+        .order("created_at", { ascending: false })
 
-        if (error) {
-          console.error("Error al obtener peticiones:", error)
-          throw error
-        }
-
-        // Procesamos los datos
-        const processedData = data.map((peticion) => {
-          // Obtener el nombre del legislador si existe
-          const legislador = peticion.peticiones_legisladores?.[0]?.legisladoresPeticion?.nombre || "-"
-
-          // Obtener el nombre de la clasificación si existe
-          const clasificacionNombre = peticion.peticiones_clasificacion?.[0]?.clasificacionesPeticion?.nombre || "-"
-
-          // Obtener el nombre del tema si existe
-          const temaNombre = peticion.peticiones_temas?.[0]?.temasPeticiones?.nombre || "-"
-
-          // Obtener el nombre y color del asesor si existe
-          const asesorNombre = peticion.peticiones_asesores?.[0]?.asesores?.name || "-"
-          const asesorColor = peticion.peticiones_asesores?.[0]?.asesores?.color || null
-
-          return {
-            ...peticion,
-            legislador,
-            clasificacionNombre,
-            temaNombre,
-            asesorNombre,
-            asesorColor,
-          }
-        })
-
-        setPeticiones(processedData)
-
-        // Obtener años únicos para el filtro
-        const uniqueYears = [...new Set(data.map((item) => item.year))].sort((a, b) => b - a)
-        setYears(uniqueYears)
-
-        // Configurar suscripciones en tiempo real
-        setupRealtimeSubscriptions(userMap)
-      } catch (error) {
-        console.error("Error al cargar datos:", error)
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudieron cargar las peticiones. Por favor, intente nuevamente.",
-        })
-      } finally {
-        setIsLoading(false)
+      if (error) {
+        console.error("Error al obtener peticiones:", error)
+        throw error
       }
-    }
 
+      // Procesamos los datos
+      const processedData = data.map((peticion) => {
+        // Obtener el nombre del legislador si existe
+        const legislador = peticion.peticiones_legisladores?.[0]?.legisladoresPeticion?.nombre || "-"
+
+        // Obtener el nombre de la clasificación si existe
+        const clasificacionNombre = peticion.peticiones_clasificacion?.[0]?.clasificacionesPeticion?.nombre || "-"
+
+        // Obtener el nombre del tema si existe
+        const temaNombre = peticion.peticiones_temas?.[0]?.temasPeticiones?.nombre || "-"
+
+        // Obtener el nombre y color del asesor si existe
+        const asesorNombre = peticion.peticiones_asesores?.[0]?.asesores?.name || "-"
+        const asesorColor = peticion.peticiones_asesores?.[0]?.asesores?.color || null
+
+        return {
+          ...peticion,
+          legislador,
+          clasificacionNombre,
+          temaNombre,
+          asesorNombre,
+          asesorColor,
+        }
+      })
+
+      setPeticiones(processedData)
+
+      // Obtener años únicos para el filtro
+      const uniqueYears = [...new Set(data.map((item) => item.year))].sort((a, b) => b - a)
+      setYears(uniqueYears)
+
+      // Configurar suscripciones en tiempo real
+      setupRealtimeSubscriptions(userMap)
+    } catch (error) {
+      console.error("Error al cargar datos:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudieron cargar las peticiones. Por favor, intente nuevamente.",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
     fetchData()
 
     // Limpiar suscripciones al desmontar
@@ -203,9 +206,18 @@ peticiones_asesores(
     subscriptions.current = [peticionesSubscription]
   }
 
+  // Función para recargar datos manualmente
+  const handleRefresh = () => {
+    fetchData()
+  }
+
   return (
     <div className="w-full">
-      <div className="flex justify-between items-center mb-6"></div>
+      <div className="flex justify-between items-center mb-6">
+        <Button onClick={handleRefresh} variant="outline" className="ml-auto">
+          Actualizar datos
+        </Button>
+      </div>
       <PeticionesTable peticiones={peticiones} years={years} tagMap={tagMap} />
 
       {/* Diálogo para seleccionar números disponibles */}

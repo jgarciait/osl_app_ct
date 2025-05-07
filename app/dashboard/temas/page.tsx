@@ -4,12 +4,9 @@ import { useState, useEffect } from "react"
 import { createClientClient } from "@/lib/supabase-client"
 import { TemasTable } from "@/components/temas-table"
 import { TemaForm } from "@/components/tema-form"
-import { useGroupPermissions } from "@/hooks/use-group-permissions"
 import { useToast } from "@/components/ui/use-toast"
 
 export default function TemasPage() {
-  const { hasPermission } = useGroupPermissions()
-  const canManageTemas = hasPermission("topics", "manage")
   const [temas, setTemas] = useState([])
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
@@ -91,13 +88,11 @@ export default function TemasPage() {
   return (
     <div className="w-full py-6 px-4">
       <div className="space-y-6">
-        {canManageTemas && (
-          <div>
-            <p className="text-muted-foreground">Administre los temas para clasificar las peticiones</p>
-          </div>
-        )}
+        <div>
+          <p className="text-muted-foreground">Administre los temas para clasificar las peticiones</p>
+        </div>
         <div className="grid gap-6 md:grid-cols-2">
-          {canManageTemas && <TemaForm />}
+          <TemaForm />
           <TemasTable temas={temas} />
         </div>
       </div>
