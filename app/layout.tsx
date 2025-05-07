@@ -1,26 +1,25 @@
 import type React from "react"
-import { Inter } from "next/font/google"
 import "./globals.css"
-import { Toaster } from "@/components/ui/toaster"
-import { ThemeProvider } from "@/components/theme-provider"
+import { Inter } from "next/font/google"
+import { NotificationProvider } from "@/contexts/notification-context"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
-  title: "Sistema de Consultoría Técnica",
-  description:
-    "Sistema de gestión documental de opiniones legales, proyectos, informes, investigaciones, resoluciones, mociones y otros productos técnicos.",
-  generator: "v0.dev",
+  title: "OASL App",
+  description: "Oficina de Asesores del Senado de Puerto Rico",
+    generator: 'v0.dev'
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="en">
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-          {children}
-          <Toaster />
-        </ThemeProvider>
+        <NotificationProvider>{children}</NotificationProvider>
       </body>
     </html>
   )
