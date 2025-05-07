@@ -5,10 +5,11 @@ export const useNotify = () => {
   const { addNotification } = useNotification()
 
   return {
-    success: (message: string) => addNotification("success", message),
-    error: (message: string) => addNotification("error", message),
-    warning: (message: string) => addNotification("warning", message),
-    info: (message: string) => addNotification("info", message),
+    toast: (message: string, title?: string) => addNotification("default", message, title),
+    success: (message: string, title?: string) => addNotification("success", message, title),
+    error: (message: string, title?: string) => addNotification("destructive", message, title),
+    warning: (message: string, title?: string) => addNotification("warning", message, title),
+    info: (message: string, title?: string) => addNotification("info", message, title),
   }
 }
 
@@ -16,31 +17,43 @@ export const useNotify = () => {
 export const createServerNotification = () => {
   // This will be used to pass notification data from server to client
   return {
-    type: "" as "success" | "error" | "warning" | "info" | "",
+    type: "" as "default" | "success" | "destructive" | "warning" | "info" | "",
     message: "",
-    setSuccess: function (message: string) {
+    title: "",
+    setToast: function (message: string, title?: string) {
+      this.type = "default"
+      this.message = message
+      this.title = title || ""
+      return this
+    },
+    setSuccess: function (message: string, title?: string) {
       this.type = "success"
       this.message = message
+      this.title = title || ""
       return this
     },
-    setError: function (message: string) {
-      this.type = "error"
+    setError: function (message: string, title?: string) {
+      this.type = "destructive"
       this.message = message
+      this.title = title || ""
       return this
     },
-    setWarning: function (message: string) {
+    setWarning: function (message: string, title?: string) {
       this.type = "warning"
       this.message = message
+      this.title = title || ""
       return this
     },
-    setInfo: function (message: string) {
+    setInfo: function (message: string, title?: string) {
       this.type = "info"
       this.message = message
+      this.title = title || ""
       return this
     },
     clear: function () {
       this.type = ""
       this.message = ""
+      this.title = ""
       return this
     },
   }
