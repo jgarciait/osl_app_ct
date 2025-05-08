@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo, useCallback } from "react"
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,8 @@ import {
   TrashIcon,
   ChevronLeft,
   ChevronRight,
+  Check,
+  RefreshCw,
 } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
@@ -30,6 +32,10 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "@/components/ui/use-toast"
 import { createClientClient } from "@/lib/supabase-client"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { cn } from "@/lib/utils"
+import type { RealtimeChannel } from "@supabase/supabase-js"
 
 export function PeticionesTable({ peticiones, years, tagMap }) {
   const router = useRouter()
@@ -41,6 +47,7 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
   const [sortDirection, setSortDirection] = useState("desc")
   const [groupByAsesor, setGroupByAsesor] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const supabase = createClientClient()
 
   // Paginación
@@ -50,11 +57,340 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [peticionToDelete, setPeticionToDelete] = useState(null)
   const [localPeticiones, setLocalPeticiones] = useState(peticiones)
+  const [estatus, setEstatus] = useState([])
+
+  // Referencias para las suscripciones de Realtime
+  const realtimeSubscriptions = useRef<RealtimeChannel[]>([])
+
+  // Cargar los estatus disponibles
+  useEffect(() => {
+    const fetchEstatus = async () => {
+      try {
+        const { data, error } = await supabase.from("peticionEstatus").select("id, nombre, color").order("nombre")
+        if (error) throw error
+        setEstatus(data || [])
+      } catch (error) {
+        console.error("Error al cargar estatus:", error)
+      }
+    }
+
+    fetchEstatus()
+  }, [supabase])
+
+  // Función para actualizar el estatus de una petición
+  const handleUpdateEstatus = async (peticionId, estatusId) => {
+    try {
+      // Buscar el estatus seleccionado
+      const selectedEstatus = estatus.find((item) => item.id === estatusId)
+
+      // Actualizar primero en el estado local para una respuesta inmediata en la UI
+      setLocalPeticiones((prevPeticiones) =>
+        prevPeticiones.map((pet) => {
+          if (pet.id === peticionId) {
+            return {
+              ...pet,
+              peticionEstatus_id: estatusId,
+              estatusNombre: selectedEstatus?.nombre || pet.estatusNombre,
+              estatusColor: selectedEstatus?.color || pet.estatusColor,
+            }
+          }
+          return pet
+        }),
+      )
+
+      // Luego actualizar en la base de datos
+      const { error } = await supabase.from("peticiones").update({ peticionEstatus_id: estatusId }).eq("id", peticionId)
+
+      if (error) throw error
+
+      toast({
+        title: "Estatus actualizado",
+        description: "El estatus de la petición ha sido actualizado correctamente.",
+      })
+    } catch (error) {
+      console.error("Error al actualizar estatus:", error)
+
+      // Si hay error, revertir el cambio en el estado local
+      handleRefresh()
+
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el estatus de la petición.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Configurar suscripciones Realtime
+  useEffect(() => {
+    // Función para limpiar suscripciones
+    const cleanupSubscriptions = () => {
+      realtimeSubscriptions.current.forEach((channel) => {
+        if (channel && channel.unsubscribe) {
+          channel.unsubscribe()
+        }
+      })
+      realtimeSubscriptions.current = []
+    }
+
+    // Limpiar suscripciones existentes
+    cleanupSubscriptions()
+
+    // Crear nueva suscripción para peticiones
+    const peticionesChannel = supabase
+      .channel("peticiones-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "peticiones",
+        },
+        async (payload) => {
+          console.log("Cambio en peticiones detectado:", payload)
+
+          try {
+            // Para actualizaciones que nosotros mismos iniciamos, no hacemos nada
+            // ya que ya actualizamos el estado local en handleUpdateEstatus
+            if (
+              payload.eventType === "UPDATE" &&
+              payload.new &&
+              payload.old &&
+              payload.new.peticionEstatus_id !== payload.old.peticionEstatus_id
+            ) {
+              // Solo para cambios de estatus que vienen de otros clientes
+              const existingPeticion = localPeticiones.find((p) => p.id === payload.new.id)
+              if (!existingPeticion) return
+
+              // Obtener el estatus actualizado
+              const updatedEstatus = estatus.find((e) => e.id === payload.new.peticionEstatus_id)
+
+              if (updatedEstatus) {
+                // Actualizar solo el estatus en el estado local
+                setLocalPeticiones((prev) =>
+                  prev.map((pet) => {
+                    if (pet.id === payload.new.id) {
+                      return {
+                        ...pet,
+                        peticionEstatus_id: payload.new.peticionEstatus_id,
+                        estatusNombre: updatedEstatus.nombre,
+                        estatusColor: updatedEstatus.color,
+                      }
+                    }
+                    return pet
+                  }),
+                )
+              }
+            } else if (payload.eventType === "INSERT") {
+              // Obtener la petición completa con sus relaciones
+              const { data: newPeticion, error } = await supabase
+                .from("peticiones")
+                .select(`
+              *,
+              peticionEstatus(id, nombre, color),
+              peticiones_legisladores(legisladoresPeticion(id, nombre)),
+              peticiones_clasificacion(clasificacionesPeticion(id, nombre)),
+              peticiones_temas(temasPeticiones(id, nombre)),
+              peticiones_asesores(asesores(id, name, color))
+            `)
+                .eq("id", payload.new.id)
+                .single()
+
+              if (error) {
+                console.error("Error al obtener nueva petición:", error)
+                return
+              }
+
+              // Procesar los datos de la nueva petición
+              const processedPeticion = {
+                ...newPeticion,
+                legislador: newPeticion.peticiones_legisladores?.[0]?.legisladoresPeticion?.nombre || "-",
+                clasificacionNombre: newPeticion.peticiones_clasificacion?.[0]?.clasificacionesPeticion?.nombre || "-",
+                temaNombre: newPeticion.peticiones_temas?.[0]?.temasPeticiones?.nombre || "-",
+                asesorNombre: newPeticion.peticiones_asesores?.[0]?.asesores?.name || "-",
+                asesorColor: newPeticion.peticiones_asesores?.[0]?.asesores?.color || null,
+                estatusNombre: newPeticion.peticionEstatus?.nombre || "-",
+                estatusColor: newPeticion.peticionEstatus?.color || null,
+              }
+
+              // Añadir la nueva petición al estado
+              setLocalPeticiones((prev) => [processedPeticion, ...prev])
+
+              toast({
+                title: "Nueva petición",
+                description: "Se ha añadido una nueva petición.",
+              })
+            } else if (payload.eventType === "DELETE") {
+              // Eliminar la petición del estado
+              setLocalPeticiones((prev) => prev.filter((pet) => pet.id !== payload.old.id))
+
+              toast({
+                title: "Petición eliminada",
+                description: "Una petición ha sido eliminada.",
+              })
+            }
+          } catch (error) {
+            console.error("Error al procesar cambio en tiempo real:", error)
+          }
+        },
+      )
+      .subscribe()
+
+    // Crear suscripción para cambios en estatus
+    const estatusChannel = supabase
+      .channel("estatus-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "peticionEstatus",
+        },
+        async (payload) => {
+          console.log("Cambio en estatus detectado:", payload)
+
+          // Actualizar la lista de estatus
+          const { data, error } = await supabase.from("peticionEstatus").select("id, nombre, color").order("nombre")
+
+          if (error) {
+            console.error("Error al recargar estatus:", error)
+            return
+          }
+
+          setEstatus(data || [])
+
+          // Si se actualizó un estatus, actualizar las peticiones que lo usan
+          if (payload.eventType === "UPDATE") {
+            setLocalPeticiones((prev) =>
+              prev.map((pet) => {
+                if (pet.peticionEstatus_id === payload.new.id) {
+                  return {
+                    ...pet,
+                    estatusNombre: payload.new.nombre,
+                    estatusColor: payload.new.color,
+                  }
+                }
+                return pet
+              }),
+            )
+          }
+        },
+      )
+      .subscribe()
+
+    // Guardar referencias a las suscripciones
+    realtimeSubscriptions.current = [peticionesChannel, estatusChannel]
+
+    // Limpiar suscripciones al desmontar
+    return () => {
+      cleanupSubscriptions()
+    }
+  }, [supabase, estatus, localPeticiones])
 
   // Actualizar localPeticiones cuando cambia peticiones
-  React.useEffect(() => {
+  useEffect(() => {
     setLocalPeticiones(peticiones)
   }, [peticiones])
+
+  // Función para recargar datos manualmente
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    try {
+      // Obtener las peticiones con sus relaciones
+      const { data, error } = await supabase
+        .from("peticiones")
+        .select(`
+        id, 
+        clasificacion,
+        year, 
+        mes, 
+        archivado, 
+        created_at,
+        asesor,
+        peticionEstatus_id,
+        peticionEstatus(id, nombre, color),
+        detalles,
+        num_peticion,
+        tramite_despachado,
+        fecha_asignacion,
+        fecha_limite,
+        peticiones_legisladores(
+          legisladoresPeticion(id, nombre)
+        ),
+        peticiones_clasificacion(
+          clasificacionesPeticion(id, nombre)
+        ),
+        peticiones_temas(
+          temasPeticiones(id, nombre)
+        ),
+        peticiones_asesores(
+          asesores(id, name, color)
+        )
+      `)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        throw error
+      }
+
+      // Procesamos los datos
+      const processedData = data.map((peticion) => {
+        // Obtener el nombre del legislador si existe
+        const legislador = peticion.peticiones_legisladores?.[0]?.legisladoresPeticion?.nombre || "-"
+
+        // Obtener el nombre de la clasificación si existe
+        const clasificacionNombre = peticion.peticiones_clasificacion?.[0]?.clasificacionesPeticion?.nombre || "-"
+
+        // Obtener el nombre del tema si existe
+        const temaNombre = peticion.peticiones_temas?.[0]?.temasPeticiones?.nombre || "-"
+
+        // Obtener el nombre y color del asesor si existe
+        const asesorNombre = peticion.peticiones_asesores?.[0]?.asesores?.name || "-"
+        const asesorColor = peticion.peticiones_asesores?.[0]?.asesores?.color || null
+
+        // Obtener el nombre y color del estatus si existe
+        const estatusNombre = peticion.peticionEstatus?.nombre || "-"
+        const estatusColor = peticion.peticionEstatus?.color || null
+
+        return {
+          ...peticion,
+          legislador,
+          clasificacionNombre,
+          temaNombre,
+          asesorNombre,
+          asesorColor,
+          estatusNombre,
+          estatusColor,
+        }
+      })
+
+      setLocalPeticiones(processedData)
+
+      // También actualizar la lista de estatus
+      const { data: estatusData, error: estatusError } = await supabase
+        .from("peticionEstatus")
+        .select("id, nombre, color")
+        .order("nombre")
+
+      if (!estatusError && estatusData) {
+        setEstatus(estatusData)
+      }
+
+      toast({
+        title: "Datos actualizados",
+        description: "Los datos de peticiones han sido actualizados correctamente.",
+      })
+    } catch (error) {
+      console.error("Error al recargar datos:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron recargar los datos. Por favor, intente nuevamente.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   // Opciones para el filtro de status
   const statusOptions = [
@@ -411,19 +747,45 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
         <TableCell>{peticion.legislador || "-"}</TableCell>
         <TableCell>{peticion.temaNombre || "-"}</TableCell>
         <TableCell>
-          <span
-            className={`px-2 py-1 rounded-full text-xs font-medium ${
-              peticion.status === "Completado"
-                ? "bg-green-100 text-green-800"
-                : peticion.status === "En progreso"
-                  ? "bg-blue-100 text-blue-800"
-                  : peticion.status === "Pendiente"
-                    ? "bg-yellow-100 text-yellow-800"
-                    : "bg-gray-100 text-gray-800"
-            }`}
-          >
-            {peticion.status || "No asignado"}
-          </span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <div className="flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded transition-colors">
+                {peticion.estatusColor ? (
+                  <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: peticion.estatusColor }} />
+                ) : null}
+                <span>{peticion.estatusNombre}</span>
+                <ChevronDownIcon className="ml-1 h-3 w-3 opacity-70" />
+              </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-0">
+              <Command>
+                <CommandInput placeholder="Buscar estatus..." />
+                <CommandList>
+                  <CommandEmpty>No se encontraron estatus.</CommandEmpty>
+                  <CommandGroup>
+                    {estatus.map((item) => (
+                      <CommandItem
+                        key={item.id}
+                        value={item.nombre}
+                        onSelect={() => handleUpdateEstatus(peticion.id, item.id)}
+                      >
+                        <div className="flex items-center">
+                          <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: item.color }} />
+                          {item.nombre}
+                        </div>
+                        <Check
+                          className={cn(
+                            "ml-auto h-4 w-4",
+                            peticion.peticionEstatus_id === item.id ? "opacity-100" : "opacity-0",
+                          )}
+                        />
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </TableCell>
         <TableCell>{fechaAsignacion ? format(fechaAsignacion, "dd MMMM yyyy", { locale: es }) : "-"}</TableCell>
         <TableCell>{fechaLimite ? format(fechaLimite, "dd MMMM yyyy", { locale: es }) : "-"}</TableCell>
@@ -536,6 +898,15 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
             </Button>
             <Button asChild variant="outline">
               <Link href="/dashboard/asesores/colores">Configurar Colores de Asesores</Link>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              {isRefreshing ? "Actualizando..." : "Actualizar datos"}
             </Button>
           </div>
           <Button asChild>

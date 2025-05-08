@@ -73,7 +73,8 @@ mes,
 archivado, 
 created_at,
 asesor,
-status,
+peticionEstatus_id,
+peticionEstatus(id, nombre, color),
 detalles,
 num_peticion,
 tramite_despachado,
@@ -114,6 +115,10 @@ peticiones_asesores(
         const asesorNombre = peticion.peticiones_asesores?.[0]?.asesores?.name || "-"
         const asesorColor = peticion.peticiones_asesores?.[0]?.asesores?.color || null
 
+        // Obtener el nombre y color del estatus si existe
+        const estatusNombre = peticion.peticionEstatus?.nombre || "-"
+        const estatusColor = peticion.peticionEstatus?.color || null
+
         return {
           ...peticion,
           legislador,
@@ -121,6 +126,8 @@ peticiones_asesores(
           temaNombre,
           asesorNombre,
           asesorColor,
+          estatusNombre,
+          estatusColor,
         }
       })
 

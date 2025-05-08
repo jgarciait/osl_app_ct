@@ -5,11 +5,12 @@ import type React from "react"
 import { useState, useRef, useCallback, useEffect } from "react"
 import { createClientClient } from "@/lib/supabase-client"
 import { Button } from "@/components/ui/button"
-import { Loader2, Upload, File, Trash, ExternalLink, FileText } from "lucide-react"
+import { Loader2, Upload, File, Trash, ExternalLink, FileText, AlertCircle } from "lucide-react"
 import { normalizeFilename } from "@/lib/normalize-filename"
 import { formatFileSize } from "@/lib/format-file-size"
 import { Progress } from "@/components/ui/progress"
 import { useNotify } from "@/lib/notifications"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface PeticionDocumentUploaderProps {
   peticionId: string
@@ -34,25 +35,57 @@ export function PeticionDocumentUploader({ peticionId }: PeticionDocumentUploade
   const [isDragging, setIsDragging] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [error, setError] = useState("")
+  const [loadAttempts, setLoadAttempts] = useState(0)
 
   // Cargar documentos existentes al montar el componente
   useEffect(() => {
+    let isMounted = true
+    let timeoutId: NodeJS.Timeout
+
     const loadExistingDocuments = async () => {
-      if (!peticionId) return
+      if (!peticionId || !isMounted) return
 
       try {
         setIsLoading(true)
-        const { data, error } = await supabase.from("documentos_peticiones").select("*").eq("peticion_id", peticionId)
+        setError("")
+        console.log(`Intentando cargar documentos para petición ID: ${peticionId} (intento ${loadAttempts + 1})`)
 
-        if (error) throw error
+        // Verificar que el cliente de Supabase esté disponible
+        if (!supabase) {
+          throw new Error("Cliente Supabase no inicializado")
+        }
 
-        if (data && data.length > 0) {
+        // Obtener documentos de la base de datos
+        const { data, error: fetchError } = await supabase
+          .from("documentos_peticiones")
+          .select("*")
+          .eq("peticion_id", peticionId)
+
+        if (fetchError) throw fetchError
+
+        console.log(`Documentos encontrados: ${data?.length || 0}`)
+
+        if (data && data.length > 0 && isMounted) {
           // Para cada documento, obtener la URL firmada
-          const filesWithUrls = await Promise.all(
-            data.map(async (doc) => {
-              const { data: urlData } = await supabase.storage
+          const filesPromises = data.map(async (doc) => {
+            try {
+              const { data: urlData, error: urlError } = await supabase.storage
                 .from("documentos")
                 .createSignedUrl(`peticiones/${doc.ruta}`, 60 * 60) // URL válida por 1 hora
+
+              if (urlError) {
+                console.warn(`Error al obtener URL para documento ${doc.id}:`, urlError)
+                return {
+                  id: doc.id,
+                  name: doc.ruta,
+                  originalName: doc.nombre,
+                  size: doc.tamano,
+                  type: doc.tipo,
+                  url: "", // URL vacía si hay error
+                  uploadedAt: doc.created_at,
+                }
+              }
 
               return {
                 id: doc.id,
@@ -63,53 +96,90 @@ export function PeticionDocumentUploader({ peticionId }: PeticionDocumentUploade
                 url: urlData?.signedUrl || "",
                 uploadedAt: doc.created_at,
               }
-            }),
-          )
+            } catch (err) {
+              console.error(`Error procesando documento ${doc.id}:`, err)
+              return null
+            }
+          })
 
-          setUploadedFiles(filesWithUrls)
+          // Usar Promise.allSettled para manejar errores individuales
+          const results = await Promise.allSettled(filesPromises)
+
+          if (isMounted) {
+            const filesWithUrls = results
+              .filter(
+                (result): result is PromiseFulfilledResult<DocumentFile> =>
+                  result.status === "fulfilled" && result.value !== null,
+              )
+              .map((result) => result.value)
+
+            setUploadedFiles(filesWithUrls)
+          }
+        } else if (isMounted) {
+          setUploadedFiles([])
         }
       } catch (error) {
         console.error("Error loading documents:", error)
-        notify.error("No se pudieron cargar los documentos existentes.", "Error")
+        if (isMounted) {
+          setError(`No se pudieron cargar los documentos: ${error.message || "Error desconocido"}`)
+
+          // Si es el primer intento, programar un reintento automático
+          if (loadAttempts === 0) {
+            timeoutId = setTimeout(() => {
+              if (isMounted) {
+                setLoadAttempts((prev) => prev + 1)
+              }
+            }, 3000)
+          }
+        }
       } finally {
-        setIsLoading(false)
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
     }
 
     loadExistingDocuments()
-  }, [peticionId, supabase, notify])
+
+    // Limpieza al desmontar
+    return () => {
+      isMounted = false
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
+  }, [peticionId, supabase, loadAttempts])
 
   // Función para subir archivo con simulación de progreso
   const uploadFileWithProgress = async (file: File, normalizedFilename: string): Promise<boolean> => {
     return new Promise((resolve, reject) => {
       // Simulamos el progreso de carga
       let progress = 0
-      const totalSize = file.size
-      const chunkSize = totalSize / 100 // Dividimos en 100 partes para el progreso
+      let progressInterval: NodeJS.Timeout
 
       // Función para simular el progreso
       const simulateProgress = () => {
         // Incrementamos el progreso de forma no lineal para simular una carga real
-        // Al principio avanza más rápido y luego se ralentiza
         if (progress < 90) {
           progress += Math.random() * 3 + 1 // Incremento aleatorio entre 1 y 4
           if (progress > 90) progress = 90 // No pasamos del 90% hasta que termine
           setUploadProgress(Math.floor(progress))
-          setTimeout(simulateProgress, 200) // Actualizamos cada 200ms
         }
       }
 
       // Iniciamos la simulación de progreso
-      simulateProgress()
+      progressInterval = setInterval(simulateProgress, 200)
 
       // Realizamos la carga real con Supabase
       supabase.storage
         .from("documentos")
         .upload(`peticiones/${normalizedFilename}`, file, {
           cacheControl: "3600",
-          upsert: false,
+          upsert: true, // Cambiado a true para sobrescribir si existe
         })
         .then(({ data, error }) => {
+          clearInterval(progressInterval)
+
           if (error) {
             reject(error)
             return
@@ -119,7 +189,10 @@ export function PeticionDocumentUploader({ peticionId }: PeticionDocumentUploade
           setUploadProgress(100)
           setTimeout(() => resolve(true), 500) // Pequeña pausa para mostrar el 100%
         })
-        .catch(reject)
+        .catch((err) => {
+          clearInterval(progressInterval)
+          reject(err)
+        })
     })
   }
 
@@ -128,6 +201,7 @@ export function PeticionDocumentUploader({ peticionId }: PeticionDocumentUploade
 
     setIsUploading(true)
     setUploadProgress(0)
+    setError("")
 
     try {
       const uploadedDocs: DocumentFile[] = []
@@ -175,6 +249,7 @@ export function PeticionDocumentUploader({ peticionId }: PeticionDocumentUploade
       notify.success(`${files.length} documento(s) subido(s) correctamente.`, "Documentos subidos")
     } catch (error) {
       console.error("Error uploading files:", error)
+      setError(`Error al subir documentos: ${error.message || "Error desconocido"}`)
       notify.error("No se pudieron subir los documentos. Por favor, intente nuevamente.", "Error")
     } finally {
       setIsUploading(false)
@@ -262,6 +337,18 @@ export function PeticionDocumentUploader({ peticionId }: PeticionDocumentUploade
 
   return (
     <div className="space-y-4">
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4 mr-2" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>{error}</span>
+            <Button variant="outline" size="sm" onClick={() => setLoadAttempts((prev) => prev + 1)} className="ml-2">
+              Reintentar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div
         className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors duration-200 ${
           isDragging
@@ -310,8 +397,9 @@ export function PeticionDocumentUploader({ peticionId }: PeticionDocumentUploade
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center p-4">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <div className="flex flex-col items-center justify-center p-8">
+          <Loader2 className="h-10 w-10 animate-spin text-primary mb-2" />
+          <p className="text-sm text-muted-foreground">Cargando documentos...</p>
         </div>
       ) : uploadedFiles.length > 0 ? (
         <div className="mt-4">
@@ -334,11 +422,17 @@ export function PeticionDocumentUploader({ peticionId }: PeticionDocumentUploade
                   </div>
                 </div>
                 <div className="flex items-center space-x-2 ml-2">
-                  <Button variant="ghost" size="sm" asChild title="Ver documento">
-                    <a href={file.url} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-4 w-4 text-gray-500" />
-                    </a>
-                  </Button>
+                  {file.url ? (
+                    <Button variant="ghost" size="sm" asChild title="Ver documento">
+                      <a href={file.url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4 text-gray-500" />
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button variant="ghost" size="sm" disabled title="URL no disponible">
+                      <ExternalLink className="h-4 w-4 text-gray-300" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -351,6 +445,10 @@ export function PeticionDocumentUploader({ peticionId }: PeticionDocumentUploade
               </li>
             ))}
           </ul>
+        </div>
+      ) : !error ? (
+        <div className="flex flex-col items-center justify-center p-8 text-center">
+          <p className="text-sm text-muted-foreground">No hay documentos adjuntos a esta petición.</p>
         </div>
       ) : null}
     </div>

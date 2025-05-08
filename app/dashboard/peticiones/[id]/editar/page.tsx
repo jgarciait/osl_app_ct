@@ -11,11 +11,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Save } from "lucide-react"
+import { ArrowLeft, Save, Clock } from "lucide-react"
 import Link from "next/link"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
-import { format } from "date-fns"
+import { format, differenceInDays, differenceInHours, differenceInMinutes, isValid } from "date-fns"
 import {
   Dialog,
   DialogContent,
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog"
 import { PeticionDocumentUploader } from "@/components/peticion-document-uploader"
 import { useNotify } from "@/lib/notifications"
+import { EstatusSelector } from "@/components/estatus-selector"
 
 export default function EditarPeticionPage({ params }) {
   const { id } = params
@@ -67,7 +68,12 @@ export default function EditarPeticionPage({ params }) {
     comentarios: "",
     tramite_despachado: false,
     archivado: false,
+    peticionEstatus_id: "",
+    fecha_despacho: "",
   })
+
+  // Cerca del inicio del componente, después de obtener el ID de los parámetros
+  const peticionId = id ? String(id) : null
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -84,6 +90,8 @@ export default function EditarPeticionPage({ params }) {
 
         if (peticionError) throw peticionError
 
+        console.log("Petición cargada:", peticion)
+
         // Cargar listas de opciones
         const { data: asesoresData } = await supabase.from("asesores").select("id, name").order("name")
         const { data: clasificacionesData } = await supabase
@@ -95,6 +103,11 @@ export default function EditarPeticionPage({ params }) {
           .select("id, nombre")
           .order("nombre")
         const { data: temasData } = await supabase.from("temasPeticiones").select("id, nombre").order("nombre")
+
+        setAsesores(asesoresData || [])
+        setClasificaciones(clasificacionesData || [])
+        setLegisladores(legisladoresData || [])
+        setTemas(temasData || [])
 
         // Cargar relaciones
         const { data: relClasificacion } = await supabase
@@ -121,11 +134,12 @@ export default function EditarPeticionPage({ params }) {
           .eq("peticiones_id", id)
           .maybeSingle()
 
-        // Actualizar estados
-        setAsesores(asesoresData || [])
-        setClasificaciones(clasificacionesData || [])
-        setLegisladores(legisladoresData || [])
-        setTemas(temasData || [])
+        console.log("Relaciones cargadas:", {
+          clasificacion: relClasificacion,
+          legislador: relLegislador,
+          tema: relTema,
+          asesor: relAsesor,
+        })
 
         // Formatear fechas
         const formattedFechaRecibido = peticion.fecha_recibido
@@ -136,8 +150,12 @@ export default function EditarPeticionPage({ params }) {
           ? format(new Date(peticion.fecha_asignacion), "yyyy-MM-dd")
           : ""
 
+        const formattedFechaDespacho = peticion.fecha_despacho
+          ? format(new Date(peticion.fecha_despacho), "yyyy-MM-dd")
+          : ""
+
         // Configurar el estado del formulario
-        setFormData({
+        const formDataUpdated = {
           clasificacion: peticion.clasificacion || "",
           clasificacion_id: relClasificacion?.clasificaciones_id || "",
           legislador: peticion.legislador || "",
@@ -153,7 +171,12 @@ export default function EditarPeticionPage({ params }) {
           comentarios: peticion.comentarios || "",
           tramite_despachado: peticion.tramite_despachado || false,
           archivado: peticion.archivado || false,
-        })
+          peticionEstatus_id: peticion.peticionEstatus_id || "",
+          fecha_despacho: formattedFechaDespacho,
+        }
+
+        console.log("Datos del formulario actualizados:", formDataUpdated)
+        setFormData(formDataUpdated)
 
         console.log("Datos iniciales cargados correctamente")
       } catch (error) {
@@ -312,11 +335,13 @@ export default function EditarPeticionPage({ params }) {
         mes: formData.mes ? Number.parseInt(formData.mes) : null,
         fecha_recibido: formData.fecha_recibido || null,
         fecha_asignacion: formData.fecha_asignacion || null,
-        status: formData.status,
+        fecha_despacho: formData.fecha_despacho || null,
+        // Eliminamos la referencia a status que no existe
         comentarios: formData.comentarios,
         tramite_despachado: formData.tramite_despachado,
         archivado: formData.archivado,
         updated_at: new Date().toISOString(),
+        peticionEstatus_id: formData.peticionEstatus_id,
       }
 
       // Actualizar la petición
@@ -416,6 +441,34 @@ export default function EditarPeticionPage({ params }) {
     }
   }
 
+  // Añadir esta función después de las declaraciones de estado
+  const formatTimeDifference = (startDateStr, endDateStr) => {
+    if (!startDateStr || !endDateStr) return null
+
+    try {
+      const startDate = new Date(startDateStr)
+      const endDate = new Date(endDateStr)
+
+      if (!isValid(startDate) || !isValid(endDate)) return null
+
+      const days = differenceInDays(endDate, startDate)
+
+      if (days < 1) {
+        const hours = differenceInHours(endDate, startDate)
+        if (hours < 1) {
+          const minutes = differenceInMinutes(endDate, startDate)
+          return `${minutes} minuto${minutes !== 1 ? "s" : ""}`
+        }
+        return `${hours} hora${hours !== 1 ? "s" : ""}`
+      }
+
+      return `${days} día${days !== 1 ? "s" : ""}`
+    } catch (error) {
+      console.error("Error al calcular diferencia de tiempo:", error)
+      return null
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -435,6 +488,30 @@ export default function EditarPeticionPage({ params }) {
         <Card>
           <CardHeader>
             <CardTitle>Información de la petición</CardTitle>
+            <div className="text-sm text-muted-foreground mt-2 space-y-1">
+              {formData.fecha_recibido && formData.fecha_asignacion && (
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  <span>
+                    Tiempo entre recepción y asignación:
+                    <strong className="ml-1">
+                      {formatTimeDifference(formData.fecha_recibido, formData.fecha_asignacion)}
+                    </strong>
+                  </span>
+                </div>
+              )}
+              {formData.fecha_asignacion && formData.fecha_despacho && (
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  <span>
+                    Tiempo entre asignación y despacho:
+                    <strong className="ml-1">
+                      {formatTimeDifference(formData.fecha_asignacion, formData.fecha_despacho)}
+                    </strong>
+                  </span>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="informacion" className="w-full">
@@ -450,7 +527,7 @@ export default function EditarPeticionPage({ params }) {
                   <div className="space-y-2">
                     <Label htmlFor="clasificacion">Clasificación</Label>
                     <Select
-                      value={formData.clasificacion_id}
+                      value={formData.clasificacion_id || ""}
                       onValueChange={(value) => handleSelectChange("clasificacion_id", value)}
                     >
                       <SelectTrigger id="clasificacion">
@@ -469,7 +546,7 @@ export default function EditarPeticionPage({ params }) {
                   <div className="space-y-2">
                     <Label htmlFor="legislador">Legislador</Label>
                     <Select
-                      value={formData.legislador_id}
+                      value={formData.legislador_id || ""}
                       onValueChange={(value) => handleSelectChange("legislador_id", value)}
                     >
                       <SelectTrigger id="legislador">
@@ -501,7 +578,7 @@ export default function EditarPeticionPage({ params }) {
                   <Label htmlFor="tema">Tema</Label>
                   <div className="flex gap-2">
                     <Select
-                      value={formData.tema_id}
+                      value={formData.tema_id || ""}
                       onValueChange={(value) => {
                         if (value === "nuevo") {
                           setOpenNuevoTemaDialog(true)
@@ -557,7 +634,7 @@ export default function EditarPeticionPage({ params }) {
                   <Label htmlFor="asesor">Asesor</Label>
                   <div className="flex gap-2">
                     <Select
-                      value={formData.asesor_id}
+                      value={formData.asesor_id || ""}
                       onValueChange={(value) => {
                         if (value === "nuevo") {
                           setOpenNuevoAsesorDialog(true)
@@ -585,17 +662,11 @@ export default function EditarPeticionPage({ params }) {
 
                 <div className="space-y-2">
                   <Label htmlFor="status">Estatus</Label>
-                  <Select value={formData.status} onValueChange={(value) => handleSelectChange("status", value)}>
-                    <SelectTrigger id="status">
-                      <SelectValue placeholder="Seleccionar estatus" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Recibida">Recibida</SelectItem>
-                      <SelectItem value="Asignada">Asignada</SelectItem>
-                      <SelectItem value="En revisión">En revisión</SelectItem>
-                      <SelectItem value="Despachada">Despachada</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <EstatusSelector
+                    value={formData.peticionEstatus_id || ""}
+                    onValueChange={(value) => handleSelectChange("peticionEstatus_id", value)}
+                    disabled={isSaving}
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -615,9 +686,11 @@ export default function EditarPeticionPage({ params }) {
                     id="tramite_despachado"
                     checked={formData.tramite_despachado}
                     onCheckedChange={(checked) => {
+                      const fechaDespacho = checked ? format(new Date(), "yyyy-MM-dd") : ""
                       setFormData((prev) => ({
                         ...prev,
                         tramite_despachado: checked,
+                        fecha_despacho: fechaDespacho,
                       }))
                     }}
                   />
@@ -627,7 +700,15 @@ export default function EditarPeticionPage({ params }) {
 
               {/* Tab 3: Documentos */}
               <TabsContent value="documentos" className="space-y-6 pt-4">
-                <PeticionDocumentUploader peticionId={id} />
+                {peticionId ? (
+                  <PeticionDocumentUploader peticionId={peticionId} />
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-8 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      Guarde la petición primero para poder adjuntar documentos.
+                    </p>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>

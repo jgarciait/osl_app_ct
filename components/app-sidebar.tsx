@@ -6,7 +6,7 @@ import Link from "next/link"
 import { createClientClient } from "@/lib/supabase-client"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
-import { FileText, Landmark, Settings, LogOut, Home, BookOpen, UserCog, Folder } from "lucide-react"
+import { FileText, Landmark, Settings, LogOut, Home, BookOpen, UserCog, Folder, TagIcon } from "lucide-react"
 import Image from "next/image"
 import { createContext, useContext, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
@@ -149,6 +149,13 @@ export function AppSidebar() {
       href: "/dashboard/clasificaciones",
       isActive: pathname === "/dashboard/clasificaciones",
       permission: { resource: "classifications", action: "view" },
+    },
+    {
+      title: "Estatus de Peticiones",
+      href: "/dashboard/estatus-peticiones",
+      icon: TagIcon, // O cualquier otro icono apropiado
+      permission: { resource: "status_requests", action: "view" }, // O el permiso que corresponda
+      isActive: pathname === "/dashboard/estatus-peticiones",
     },
     // Se ha eliminado la sección de Etiquetas
     // Se ha eliminado la sección de Reportes

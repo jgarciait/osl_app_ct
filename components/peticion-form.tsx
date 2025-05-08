@@ -19,6 +19,8 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { CalendarIcon } from "lucide-react"
+// Importar el selector de estatus
+import { EstatusSelector } from "@/components/estatus-selector"
 
 export function PeticionForm({ peticion = null }) {
   const router = useRouter()
@@ -28,6 +30,7 @@ export function PeticionForm({ peticion = null }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [clasificaciones, setClasificaciones] = useState([])
   const [legisladores, setLegisladores] = useState([])
+  // Buscar donde se define el estado inicial del formulario y añadir peticionEstatus_id
   const [formData, setFormData] = useState({
     id: null,
     clasificacion: "",
@@ -41,6 +44,9 @@ export function PeticionForm({ peticion = null }) {
     estatus: "pendiente",
     tramite_despachado: false,
     archivado: false,
+    // ... otros campos
+    peticionEstatus_id: null,
+    // ... otros campos
   })
 
   // Fetch clasificaciones
@@ -115,6 +121,7 @@ export function PeticionForm({ peticion = null }) {
             estatus: peticion.estatus || "pendiente",
             tramite_despachado: peticion.tramite_despachado || false,
             archivado: peticion.archivado || false,
+            peticionEstatus_id: peticion.peticionEstatus_id,
           })
         } catch (error) {
           console.error("Error fetching legislador for peticion:", error)
@@ -143,12 +150,9 @@ export function PeticionForm({ peticion = null }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setIsSubmitting(true)
-
+    // Preparar los datos para guardar
     try {
-      const currentDate = new Date()
-      const currentMonth = currentDate.getMonth() + 1 // JavaScript months are 0-indexed
-      const currentYear = currentDate.getFullYear()
+      setIsSubmitting(true)
 
       // Prepare data for insert/update
       const peticionData = {
@@ -159,10 +163,15 @@ export function PeticionForm({ peticion = null }) {
         comentarios: formData.comentarios,
         fecha_asignacion: formData.fecha_asignacion.toISOString(),
         fecha_limite: formData.fecha_limite.toISOString(),
-        estatus: formData.estatus,
+        // Eliminamos la referencia a estatus que podría causar problemas
         tramite_despachado: formData.tramite_despachado,
         archivado: formData.archivado,
+        peticionEstatus_id: formData.peticionEstatus_id,
       }
+
+      const currentDate = new Date()
+      const currentMonth = currentDate.getMonth() + 1 // JavaScript months are 0-indexed
+      const currentYear = currentDate.getFullYear()
 
       let peticionId = formData.id
 
@@ -422,19 +431,12 @@ export function PeticionForm({ peticion = null }) {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
+                <div className="grid gap-2">
                   <Label htmlFor="estatus">Estatus</Label>
-                  <Select value={formData.estatus} onValueChange={(value) => handleSelectChange("estatus", value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione un estatus" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pendiente">Pendiente</SelectItem>
-                      <SelectItem value="en_proceso">En Proceso</SelectItem>
-                      <SelectItem value="completado">Completado</SelectItem>
-                      <SelectItem value="cancelado">Cancelado</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <EstatusSelector
+                    value={formData.peticionEstatus_id}
+                    onValueChange={(value) => setFormData({ ...formData, peticionEstatus_id: value })}
+                  />
                 </div>
 
                 <div className="flex items-center space-x-2 pt-8">
