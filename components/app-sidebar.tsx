@@ -203,7 +203,7 @@ export function AppSidebar() {
           />
           <div className="flex flex-col">
             <span className="text-lg font-bold">OSL</span>
-            <span className="text-xs text-muted-foreground">Sistema de Consultoría Técnica</span>
+            <span className="text-xs text-muted-foreground">Plataforma de Consultoría Legislativa</span>
           </div>
         </div>
       </div>

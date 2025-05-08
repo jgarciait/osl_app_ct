@@ -29,13 +29,13 @@ export default function LoginPage() {
             height={60}
             className="mr-4"
           />
-          Sistema de Consultoría Técnica
+          Plataforma de Consultoría Legislativa (PCL)
         </div>
         <div className="relative z-20 w-full pt-[50px] pb-[50px]">
           <SlideIn delay={0.3} direction="right">
             <Image
               src="https://static.wixstatic.com/media/5be21a_3f47063a0cd84787b87628518e8fcc53~mv2.jpg/v1/fill/w_762,h_571,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/5be21a_3f47063a0cd84787b87628518e8fcc53~mv2.jpg"
-              alt="Imagen de Participación Ciudadana"
+              alt="Imagen de OSL"
               width={1200}
               height={300}
               className="w-full h-[300px] object-cover rounded-lg shadow-lg"
@@ -48,7 +48,7 @@ export default function LoginPage() {
             <blockquote className="space-y-2">
               <p className="text-lg">
                 "Sistema de gestión documental de opiniones legales, proyectos, informes, investigaciones, resoluciones,
-                mociones y otros productos técnicos."
+                mociones y otros productos técnicos para asistir a los legisladores."
               </p>
             </blockquote>
           </FadeIn>
