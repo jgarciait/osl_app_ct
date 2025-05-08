@@ -4,12 +4,12 @@ import type React from "react"
 
 import { useState, useRef, useCallback, useEffect } from "react"
 import { createClientClient } from "@/lib/supabase-client"
-import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import { Loader2, Upload, File, Trash, ExternalLink, FileText } from "lucide-react"
 import { normalizeFilename } from "@/lib/normalize-filename"
 import { formatFileSize } from "@/lib/format-file-size"
 import { Progress } from "@/components/ui/progress"
+import { useNotify } from "@/lib/notifications"
 
 interface PeticionDocumentUploaderProps {
   peticionId: string
@@ -26,7 +26,7 @@ interface DocumentFile {
 }
 
 export function PeticionDocumentUploader({ peticionId }: PeticionDocumentUploaderProps) {
-  const { toast } = useToast()
+  const notify = useNotify()
   const supabase = createClientClient()
   const [isUploading, setIsUploading] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<DocumentFile[]>([])
@@ -70,18 +70,14 @@ export function PeticionDocumentUploader({ peticionId }: PeticionDocumentUploade
         }
       } catch (error) {
         console.error("Error loading documents:", error)
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudieron cargar los documentos existentes.",
-        })
+        notify.error("No se pudieron cargar los documentos existentes.", "Error")
       } finally {
         setIsLoading(false)
       }
     }
 
     loadExistingDocuments()
-  }, [peticionId, supabase, toast])
+  }, [peticionId, supabase, notify])
 
   // Función para subir archivo con simulación de progreso
   const uploadFileWithProgress = async (file: File, normalizedFilename: string): Promise<boolean> => {
@@ -176,17 +172,10 @@ export function PeticionDocumentUploader({ peticionId }: PeticionDocumentUploade
 
       setUploadedFiles((prev) => [...prev, ...uploadedDocs])
 
-      toast({
-        title: "Documentos subidos",
-        description: `${files.length} documento(s) subido(s) correctamente.`,
-      })
+      notify.success(`${files.length} documento(s) subido(s) correctamente.`, "Documentos subidos")
     } catch (error) {
       console.error("Error uploading files:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudieron subir los documentos. Por favor, intente nuevamente.",
-      })
+      notify.error("No se pudieron subir los documentos. Por favor, intente nuevamente.", "Error")
     } finally {
       setIsUploading(false)
       setUploadProgress(0)
@@ -250,17 +239,10 @@ export function PeticionDocumentUploader({ peticionId }: PeticionDocumentUploade
       // Actualizar el estado
       setUploadedFiles((prev) => prev.filter((file) => file.id !== fileId))
 
-      toast({
-        title: "Documento eliminado",
-        description: "El documento ha sido eliminado correctamente.",
-      })
+      notify.success("El documento ha sido eliminado correctamente.", "Documento eliminado")
     } catch (error) {
       console.error("Error removing file:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo eliminar el documento. Por favor, intente nuevamente.",
-      })
+      notify.error("No se pudo eliminar el documento. Por favor, intente nuevamente.", "Error")
     }
   }
 

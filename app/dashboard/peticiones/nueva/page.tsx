@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { createClientClient } from "@/lib/supabase-client"
 import { useRouter } from "next/navigation"
-import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -28,10 +27,11 @@ import { cn } from "@/lib/utils"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { CommandList } from "@/components/ui/command"
 import { PeticionDocumentUploader } from "@/components/peticion-document-uploader"
+import { useNotify } from "@/lib/notifications"
 
 export default function NuevaPeticionPage() {
   const router = useRouter()
-  const { toast } = useToast()
+  const notify = useNotify()
   const [isSaving, setIsSaving] = useState(false)
   const [asesores, setAsesores] = useState([])
   const [clasificaciones, setClasificaciones] = useState([])
@@ -180,17 +180,10 @@ export default function NuevaPeticionPage() {
 
       setUploadedFiles((prev) => [...prev, ...newFiles])
 
-      toast({
-        title: "Archivos subidos",
-        description: `${files.length} archivo(s) subido(s) correctamente.`,
-      })
+      notify.success(`${files.length} archivo(s) subido(s) correctamente.`, "Archivos subidos")
     } catch (error) {
       console.error("Error uploading files:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudieron subir los archivos. Por favor, intente nuevamente.",
-      })
+      notify.error("No se pudieron subir los archivos. Por favor, intente nuevamente.", "Error")
     } finally {
       setIsUploading(false)
     }
@@ -237,21 +230,14 @@ export default function NuevaPeticionPage() {
         tema_id: nuevoTemaData.id,
       }))
 
-      toast({
-        title: "Tema creado",
-        description: `El tema "${nuevoTema}" ha sido creado correctamente.`,
-      })
+      notify.success(`El tema "${nuevoTema}" ha sido creado correctamente.`, "Tema creado")
 
       // Cerrar el diálogo y limpiar el campo
       setOpenNuevoTemaDialog(false)
       setNuevoTema("")
     } catch (error) {
       console.error("Error creating tema:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: `No se pudo crear el tema: ${error.message}`,
-      })
+      notify.error(`No se pudo crear el tema: ${error.message}`, "Error")
     } finally {
       setIsCreatingTema(false)
     }
@@ -385,10 +371,7 @@ export default function NuevaPeticionPage() {
       // Si hay archivos, asociarlos a la petición
       // Aquí iría el código para guardar la relación entre los archivos y la petición
 
-      toast({
-        title: "Petición creada",
-        description: `La petición ${fullNumPeticion} ha sido creada correctamente.`,
-      })
+      notify.success(`La petición ${fullNumPeticion} ha sido creada correctamente.`, "Petición creada")
 
       // Redirigir según el tipo de redirección solicitado
       if (redirectType === "list") {
@@ -401,11 +384,7 @@ export default function NuevaPeticionPage() {
       }
     } catch (error) {
       console.error("Error creating peticion:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: `No se pudo crear la petición: ${error.message}`,
-      })
+      notify.error(`No se pudo crear la petición: ${error.message}`, "Error")
     } finally {
       setIsSaving(false)
     }

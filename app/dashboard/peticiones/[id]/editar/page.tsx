@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { createClientClient } from "@/lib/supabase-client"
 import { useRouter } from "next/navigation"
-import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -25,43 +24,34 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
-import { Check, ChevronsUpDown, Plus } from "lucide-react"
 import { PeticionDocumentUploader } from "@/components/peticion-document-uploader"
+import { useNotify } from "@/lib/notifications"
 
 export default function EditarPeticionPage({ params }) {
   const { id } = params
   const router = useRouter()
-  const { toast } = useToast()
+  const notify = useNotify()
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+
+  // Estados para las listas de opciones
   const [asesores, setAsesores] = useState([])
   const [clasificaciones, setClasificaciones] = useState([])
   const [legisladores, setLegisladores] = useState([])
-  const [uploadedFiles, setUploadedFiles] = useState([])
-  const [isUploading, setIsUploading] = useState(false)
-  const [clasificacionActual, setClasificacionActual] = useState(null)
-  const [legisladorActual, setLegisladorActual] = useState(null)
   const [temas, setTemas] = useState([])
-  const [temaActual, setTemaActual] = useState(null)
-  const [openTemaPopover, setOpenTemaPopover] = useState(false)
-  const [temaSearch, setTemaSearch] = useState("")
+
+  // Estados para los diálogos de creación
   const [openNuevoTemaDialog, setOpenNuevoTemaDialog] = useState(false)
   const [nuevoTema, setNuevoTema] = useState("")
   const [isCreatingTema, setIsCreatingTema] = useState(false)
-  const [asesorActual, setAsesorActual] = useState(null)
-  const [asesorSearch, setAsesorSearch] = useState("")
 
-  const [openAsesorPopover, setOpenAsesorPopover] = useState(false)
   const [openNuevoAsesorDialog, setOpenNuevoAsesorDialog] = useState(false)
   const [nuevoAsesor, setNuevoAsesor] = useState({ name: "", email: "", tel: "" })
   const [isCreatingAsesor, setIsCreatingAsesor] = useState(false)
 
+  // Estado principal del formulario - SIMPLIFICADO
   const [formData, setFormData] = useState({
-    // Tab 1: Información de Petición
     clasificacion_id: "",
     clasificacion: "",
     legislador_id: "",
@@ -71,18 +61,15 @@ export default function EditarPeticionPage({ params }) {
     detalles: "",
     year: "",
     mes: "",
-
-    // Tab 2: Trámites
     fecha_asignacion: "",
-    asesor_id: "", // Cambiado de asesor a asesor_id
+    asesor_id: "",
     status: "",
     comentarios: "",
     tramite_despachado: false,
-
-    // Otros campos necesarios
     archivado: false,
   })
 
+  // Cargar datos iniciales
   useEffect(() => {
     const fetchData = async () => {
       const supabase = createClientClient()
@@ -97,97 +84,50 @@ export default function EditarPeticionPage({ params }) {
 
         if (peticionError) throw peticionError
 
-        // Obtener lista de asesores
-        const { data: asesoresData, error: asesoresError } = await supabase
-          .from("asesores")
-          .select("id, name")
-          .order("name")
-
-        if (asesoresError) throw asesoresError
-
-        // Obtener lista de clasificaciones
-        const { data: clasificacionesData, error: clasificacionesError } = await supabase
+        // Cargar listas de opciones
+        const { data: asesoresData } = await supabase.from("asesores").select("id, name").order("name")
+        const { data: clasificacionesData } = await supabase
           .from("clasificacionesPeticion")
           .select("id, nombre")
           .order("nombre")
-
-        if (clasificacionesError) throw clasificacionesError
-
-        // Obtener lista de legisladores
-        const { data: legisladoresData, error: legisladoresError } = await supabase
+        const { data: legisladoresData } = await supabase
           .from("legisladoresPeticion")
           .select("id, nombre")
           .order("nombre")
+        const { data: temasData } = await supabase.from("temasPeticiones").select("id, nombre").order("nombre")
 
-        if (legisladoresError) throw legisladoresError
-
-        // Obtener lista de temas
-        const { data: temasData, error: temasError } = await supabase
-          .from("temasPeticiones")
-          .select("id, nombre")
-          .order("nombre")
-
-        if (temasError) throw temasError
-
-        // Obtener la relación de clasificación actual
-        const { data: relClasificacion, error: relClasificacionError } = await supabase
+        // Cargar relaciones
+        const { data: relClasificacion } = await supabase
           .from("peticiones_clasificacion")
           .select("clasificaciones_id")
           .eq("peticiones_id", id)
           .maybeSingle()
 
-        if (relClasificacionError && relClasificacionError.code !== "PGRST116") {
-          // Ignorar error si no hay resultados
-          throw relClasificacionError
-        }
-
-        // Obtener la relación de legislador actual
-        const { data: relLegislador, error: relLegisladorError } = await supabase
+        const { data: relLegislador } = await supabase
           .from("peticiones_legisladores")
           .select("legisladoresPeticion_id")
           .eq("peticiones_id", id)
           .maybeSingle()
 
-        if (relLegisladorError && relLegisladorError.code !== "PGRST116") {
-          // Ignorar error si no hay resultados
-          throw relLegisladorError
-        }
-
-        // Obtener la relación de tema actual
-        const { data: relTema, error: relTemaError } = await supabase
+        const { data: relTema } = await supabase
           .from("peticiones_temas")
           .select("temasPeticiones_id")
           .eq("peticiones_id", id)
           .maybeSingle()
 
-        if (relTemaError && relTemaError.code !== "PGRST116") {
-          // Ignorar error si no hay resultados
-          throw relTemaError
-        }
-
-        // Obtener la relación de asesor actual
-        const { data: relAsesor, error: relAsesorError } = await supabase
+        const { data: relAsesor } = await supabase
           .from("peticiones_asesores")
           .select("asesores_id")
           .eq("peticiones_id", id)
           .maybeSingle()
 
-        if (relAsesorError && relAsesorError.code !== "PGRST116") {
-          // Ignorar error si no hay resultados
-          throw relAsesorError
-        }
-
-        setAsesorActual(relAsesor?.asesores_id || null)
-
+        // Actualizar estados
         setAsesores(asesoresData || [])
         setClasificaciones(clasificacionesData || [])
         setLegisladores(legisladoresData || [])
         setTemas(temasData || [])
-        setClasificacionActual(relClasificacion?.clasificaciones_id || null)
-        setLegisladorActual(relLegislador?.legisladoresPeticion_id || null)
-        setTemaActual(relTema?.temasPeticiones_id || null)
 
-        // Formatear fechas para los inputs de tipo date
+        // Formatear fechas
         const formattedFechaRecibido = peticion.fecha_recibido
           ? format(new Date(peticion.fecha_recibido), "yyyy-MM-dd")
           : ""
@@ -196,13 +136,14 @@ export default function EditarPeticionPage({ params }) {
           ? format(new Date(peticion.fecha_asignacion), "yyyy-MM-dd")
           : ""
 
+        // Configurar el estado del formulario
         setFormData({
           clasificacion: peticion.clasificacion || "",
           clasificacion_id: relClasificacion?.clasificaciones_id || "",
           legislador: peticion.legislador || "",
           legislador_id: relLegislador?.legisladoresPeticion_id || "",
           tema_id: relTema?.temasPeticiones_id || "",
-          asesor_id: relAsesor?.asesores_id || "", // Añadir esta línea
+          asesor_id: relAsesor?.asesores_id || "",
           fecha_recibido: formattedFechaRecibido,
           detalles: peticion.detalles || "",
           year: peticion.year?.toString() || "",
@@ -213,13 +154,11 @@ export default function EditarPeticionPage({ params }) {
           tramite_despachado: peticion.tramite_despachado || false,
           archivado: peticion.archivado || false,
         })
+
+        console.log("Datos iniciales cargados correctamente")
       } catch (error) {
         console.error("Error fetching data:", error)
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudieron cargar los datos. Por favor, intente nuevamente.",
-        })
+        notify.error("No se pudieron cargar los datos. Por favor, intente nuevamente.", "Error")
         router.push("/dashboard/peticiones")
       } finally {
         setIsLoading(false)
@@ -229,92 +168,47 @@ export default function EditarPeticionPage({ params }) {
     if (id) {
       fetchData()
     }
-  }, [id, router, toast])
+    // Este useEffect solo debe ejecutarse una vez al cargar el componente
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
+  // Manejadores de cambios - SIMPLIFICADOS
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target
+    const newValue = type === "checkbox" ? checked : value
+
+    console.log(`Cambiando ${name} a:`, newValue)
+
     setFormData((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: newValue,
     }))
   }
 
   const handleSelectChange = (name, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
+    console.log(`Cambiando ${name} a:`, value)
 
-    // Si cambia la clasificación, actualizar también el nombre
-    if (name === "clasificacion_id") {
-      const clasificacionSeleccionada = clasificaciones.find((c) => c.id === value)
-      if (clasificacionSeleccionada) {
-        setFormData((prev) => ({
-          ...prev,
-          clasificacion: clasificacionSeleccionada.nombre,
-        }))
+    setFormData((prev) => {
+      const newState = { ...prev, [name]: value }
+
+      // Actualizar nombres solo si es necesario
+      if (name === "clasificacion_id") {
+        const clasificacionSeleccionada = clasificaciones.find((c) => c.id === value)
+        if (clasificacionSeleccionada) {
+          newState.clasificacion = clasificacionSeleccionada.nombre
+        }
+      } else if (name === "legislador_id") {
+        const legisladorSeleccionado = legisladores.find((l) => l.id === value)
+        if (legisladorSeleccionado) {
+          newState.legislador = legisladorSeleccionado.nombre
+        }
       }
-    }
 
-    // Si cambia el legislador, actualizar también el nombre
-    if (name === "legislador_id") {
-      const legisladorSeleccionado = legisladores.find((l) => l.id === value)
-      if (legisladorSeleccionado) {
-        setFormData((prev) => ({
-          ...prev,
-          legislador: legisladorSeleccionado.nombre,
-        }))
-      }
-    }
+      return newState
+    })
   }
 
-  const handleSwitchChange = (name, checked) => {
-    setFormData((prev) => ({
-      ...prev,
-      [name]: checked,
-    }))
-  }
-
-  const handleFileUpload = async (e) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
-
-    setIsUploading(true)
-
-    try {
-      // Simulación de carga de archivos
-      // En una implementación real, aquí subirías los archivos a Supabase Storage
-
-      const newFiles = Array.from(files).map((file) => ({
-        id: Math.random().toString(36).substring(2),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        uploadedAt: new Date().toISOString(),
-      }))
-
-      setUploadedFiles((prev) => [...prev, ...newFiles])
-
-      toast({
-        title: "Archivos subidos",
-        description: `${files.length} archivo(s) subido(s) correctamente.`,
-      })
-    } catch (error) {
-      console.error("Error uploading files:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudieron subir los archivos. Por favor, intente nuevamente.",
-      })
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  const handleRemoveFile = (fileId) => {
-    setUploadedFiles((prev) => prev.filter((file) => file.id !== fileId))
-  }
-
+  // Crear nuevo tema
   const handleCrearTema = async () => {
     if (!nuevoTema.trim()) return
 
@@ -334,14 +228,7 @@ export default function EditarPeticionPage({ params }) {
 
       if (error) throw error
 
-      // Obtener el tema recién creado
-      const { data: nuevoTemaData, error: fetchError } = await supabase
-        .from("temasPeticiones")
-        .select("id, nombre")
-        .eq("nombre", nuevoTema.trim())
-        .single()
-
-      if (fetchError) throw fetchError
+      const nuevoTemaData = data[0]
 
       // Actualizar la lista de temas
       setTemas((prev) => [...prev, nuevoTemaData])
@@ -352,26 +239,18 @@ export default function EditarPeticionPage({ params }) {
         tema_id: nuevoTemaData.id,
       }))
 
-      toast({
-        title: "Tema creado",
-        description: `El tema "${nuevoTema}" ha sido creado correctamente.`,
-      })
-
-      // Cerrar el diálogo y limpiar el campo
+      notify.success(`El tema "${nuevoTema}" ha sido creado correctamente.`, "Tema creado")
       setOpenNuevoTemaDialog(false)
       setNuevoTema("")
     } catch (error) {
       console.error("Error creating tema:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: `No se pudo crear el tema: ${error.message}`,
-      })
+      notify.error(`No se pudo crear el tema: ${error.message}`, "Error")
     } finally {
       setIsCreatingTema(false)
     }
   }
 
+  // Crear nuevo asesor
   const handleCrearAsesor = async () => {
     if (!nuevoAsesor.name.trim()) return
 
@@ -393,14 +272,7 @@ export default function EditarPeticionPage({ params }) {
 
       if (error) throw error
 
-      // Obtener el asesor recién creado
-      const { data: nuevoAsesorData, error: fetchError } = await supabase
-        .from("asesores")
-        .select("id, name")
-        .eq("name", nuevoAsesor.name.trim())
-        .single()
-
-      if (fetchError) throw fetchError
+      const nuevoAsesorData = data[0]
 
       // Actualizar la lista de asesores
       setAsesores((prev) => [...prev, nuevoAsesorData])
@@ -411,181 +283,100 @@ export default function EditarPeticionPage({ params }) {
         asesor_id: nuevoAsesorData.id,
       }))
 
-      toast({
-        title: "Asesor creado",
-        description: `El asesor "${nuevoAsesor.name}" ha sido creado correctamente.`,
-      })
-
-      // Cerrar el diálogo y limpiar el campo
+      notify.success(`El asesor "${nuevoAsesor.name}" ha sido creado correctamente.`, "Asesor creado")
       setOpenNuevoAsesorDialog(false)
       setNuevoAsesor({ name: "", email: "", tel: "" })
     } catch (error) {
       console.error("Error creating asesor:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: `No se pudo crear el asesor: ${error.message}`,
-      })
+      notify.error(`No se pudo crear el asesor: ${error.message}`, "Error")
     } finally {
       setIsCreatingAsesor(false)
     }
   }
 
+  // Guardar cambios
   const handleSubmit = async (e, shouldRedirect = false, stayOnPage = false) => {
     e.preventDefault()
     setIsSaving(true)
+
+    console.log("Guardando datos:", formData)
 
     const supabase = createClientClient()
 
     try {
       // Preparar datos para la actualización
       const updateData = {
-        ...formData,
+        clasificacion: formData.clasificacion,
+        detalles: formData.detalles,
         year: formData.year ? Number.parseInt(formData.year) : null,
         mes: formData.mes ? Number.parseInt(formData.mes) : null,
         fecha_recibido: formData.fecha_recibido || null,
         fecha_asignacion: formData.fecha_asignacion || null,
+        status: formData.status,
+        comentarios: formData.comentarios,
+        tramite_despachado: formData.tramite_despachado,
+        archivado: formData.archivado,
         updated_at: new Date().toISOString(),
       }
 
-      // Eliminar campos de ID que no son columnas en la tabla peticiones
-      delete updateData.clasificacion_id
-      delete updateData.legislador_id
-      delete updateData.tema_id
-      delete updateData.legislador
-      delete updateData.asesor_id
-
-      // Convertir campos de fecha vacíos a null
-      Object.keys(updateData).forEach((key) => {
-        if (key.startsWith("fecha_") && updateData[key] === "") {
-          updateData[key] = null
-        }
-      })
-
+      // Actualizar la petición
       const { error } = await supabase.from("peticiones").update(updateData).eq("id", id)
-
       if (error) throw error
 
-      // Actualizar la relación de clasificación si ha cambiado
-      if (formData.clasificacion_id !== clasificacionActual) {
-        if (clasificacionActual) {
-          // Eliminar la relación anterior
-          const { error: delError } = await supabase
-            .from("peticiones_clasificacion")
-            .delete()
-            .eq("peticiones_id", id)
-            .eq("clasificaciones_id", clasificacionActual)
+      // Actualizar relaciones
+      // 1. Clasificación
+      if (formData.clasificacion_id) {
+        // Eliminar relaciones existentes
+        await supabase.from("peticiones_clasificacion").delete().eq("peticiones_id", id)
 
-          if (delError) {
-            console.error("Error deleting classification relation:", delError)
-          }
-        }
-
-        if (formData.clasificacion_id) {
-          // Crear nueva relación
-          const { error: insError } = await supabase.from("peticiones_clasificacion").insert({
-            peticiones_id: id,
-            clasificaciones_id: formData.clasificacion_id,
-            created_at: new Date().toISOString(),
-          })
-
-          if (insError) {
-            console.error("Error creating classification relation:", insError)
-          }
-        }
+        // Crear nueva relación
+        await supabase.from("peticiones_clasificacion").insert({
+          peticiones_id: id,
+          clasificaciones_id: formData.clasificacion_id,
+          created_at: new Date().toISOString(),
+        })
       }
 
-      // Actualizar la relación de legislador si ha cambiado
-      if (formData.legislador_id !== legisladorActual) {
-        if (legisladorActual) {
-          // Eliminar la relación anterior
-          const { error: delError } = await supabase
-            .from("peticiones_legisladores")
-            .delete()
-            .eq("peticiones_id", id)
-            .eq("legisladoresPeticion_id", legisladorActual)
+      // 2. Legislador
+      if (formData.legislador_id) {
+        // Eliminar relaciones existentes
+        await supabase.from("peticiones_legisladores").delete().eq("peticiones_id", id)
 
-          if (delError) {
-            console.error("Error deleting legislator relation:", delError)
-          }
-        }
-
-        if (formData.legislador_id) {
-          // Crear nueva relación
-          const { error: insError } = await supabase.from("peticiones_legisladores").insert({
-            peticiones_id: id,
-            legisladoresPeticion_id: formData.legislador_id,
-            created_at: new Date().toISOString(),
-          })
-
-          if (insError) {
-            console.error("Error creating legislator relation:", insError)
-          }
-        }
+        // Crear nueva relación
+        await supabase.from("peticiones_legisladores").insert({
+          peticiones_id: id,
+          legisladoresPeticion_id: formData.legislador_id,
+          created_at: new Date().toISOString(),
+        })
       }
 
-      // Actualizar la relación de tema si ha cambiado
-      if (formData.tema_id !== temaActual) {
-        if (temaActual) {
-          // Eliminar la relación anterior
-          const { error: delError } = await supabase
-            .from("peticiones_temas")
-            .delete()
-            .eq("peticiones_id", id)
-            .eq("temasPeticiones_id", temaActual)
+      // 3. Tema
+      if (formData.tema_id) {
+        // Eliminar relaciones existentes
+        await supabase.from("peticiones_temas").delete().eq("peticiones_id", id)
 
-          if (delError) {
-            console.error("Error deleting tema relation:", delError)
-          }
-        }
-
-        if (formData.tema_id) {
-          // Crear nueva relación
-          const { error: insError } = await supabase.from("peticiones_temas").insert({
-            peticiones_id: id,
-            temasPeticiones_id: formData.tema_id,
-            created_at: new Date().toISOString(),
-          })
-
-          if (insError) {
-            console.error("Error creating tema relation:", insError)
-          }
-        }
+        // Crear nueva relación
+        await supabase.from("peticiones_temas").insert({
+          peticiones_id: id,
+          temasPeticiones_id: formData.tema_id,
+          created_at: new Date().toISOString(),
+        })
       }
 
-      // Actualizar la relación de asesor si ha cambiado
-      if (formData.asesor_id !== asesorActual) {
-        if (asesorActual) {
-          // Eliminar la relación anterior
-          const { error: delError } = await supabase
-            .from("peticiones_asesores")
-            .delete()
-            .eq("peticiones_id", id)
-            .eq("asesores_id", asesorActual)
+      // 4. Asesor
+      if (formData.asesor_id) {
+        // Eliminar relaciones existentes
+        await supabase.from("peticiones_asesores").delete().eq("peticiones_id", id)
 
-          if (delError) {
-            console.error("Error deleting asesor relation:", delError)
-          }
-        }
-
-        if (formData.asesor_id) {
-          // Crear nueva relación
-          const { error: insError } = await supabase.from("peticiones_asesores").insert({
-            peticiones_id: id,
-            asesores_id: formData.asesor_id,
-            created_at: new Date().toISOString(),
-          })
-
-          if (insError) {
-            console.error("Error creating asesor relation:", insError)
-          }
-        }
+        // Crear nueva relación
+        await supabase.from("peticiones_asesores").insert({
+          peticiones_id: id,
+          asesores_id: formData.asesor_id,
+          created_at: new Date().toISOString(),
+        })
       }
 
-      toast({
-        title: "Petición actualizada",
-        description: "La petición ha sido actualizada correctamente.",
-      })
+      notify.success("La petición ha sido actualizada correctamente.", "Petición actualizada")
 
       if (!stayOnPage) {
         if (shouldRedirect) {
@@ -596,76 +387,32 @@ export default function EditarPeticionPage({ params }) {
       }
     } catch (error) {
       console.error("Error updating peticion:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo actualizar la petición. Por favor, intente nuevamente.",
-      })
+      notify.error(`No se pudo actualizar la petición: ${error.message}`, "Error")
     } finally {
       setIsSaving(false)
     }
   }
 
+  // Eliminar petición
   const handleDelete = async () => {
     const supabase = createClientClient()
 
     try {
-      // Primero eliminar las relaciones en peticiones_clasificacion
-      const { error: relClasificacionError } = await supabase
-        .from("peticiones_clasificacion")
-        .delete()
-        .eq("peticiones_id", id)
+      // Eliminar todas las relaciones
+      await supabase.from("peticiones_clasificacion").delete().eq("peticiones_id", id)
+      await supabase.from("peticiones_legisladores").delete().eq("peticiones_id", id)
+      await supabase.from("peticiones_temas").delete().eq("peticiones_id", id)
+      await supabase.from("peticiones_asesores").delete().eq("peticiones_id", id)
 
-      if (relClasificacionError) {
-        console.error("Error deleting classification relations:", relClasificacionError)
-        // Continuamos con la eliminación de la petición aunque falle la eliminación de relaciones
-      }
-
-      // Eliminar las relaciones en peticiones_legisladores
-      const { error: relLegisladorError } = await supabase
-        .from("peticiones_legisladores")
-        .delete()
-        .eq("peticiones_id", id)
-
-      if (relLegisladorError) {
-        console.error("Error deleting legislator relations:", relLegisladorError)
-        // Continuamos con la eliminación de la petición aunque falle la eliminación de relaciones
-      }
-
-      // Eliminar las relaciones en peticiones_temas
-      const { error: relTemaError } = await supabase.from("peticiones_temas").delete().eq("peticiones_id", id)
-
-      if (relTemaError) {
-        console.error("Error deleting tema relations:", relTemaError)
-        // Continuamos con la eliminación de la petición aunque falle la eliminación de relaciones
-      }
-
-      // Eliminar las relaciones en peticiones_asesores
-      const { error: relAsesorError } = await supabase.from("peticiones_asesores").delete().eq("peticiones_id", id)
-
-      if (relAsesorError) {
-        console.error("Error deleting asesor relations:", relAsesorError)
-        // Continuamos con la eliminación de la petición aunque falle la eliminación de relaciones
-      }
-
-      // Luego eliminar la petición
+      // Eliminar la petición
       const { error } = await supabase.from("peticiones").delete().eq("id", id)
-
       if (error) throw error
 
-      toast({
-        title: "Petición eliminada",
-        description: "La petición ha sido eliminada correctamente.",
-      })
-
+      notify.success("La petición ha sido eliminada correctamente.", "Petición eliminada")
       router.push("/dashboard/peticiones")
     } catch (error) {
       console.error("Error deleting peticion:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo eliminar la petición. Por favor, intente nuevamente.",
-      })
+      notify.error("No se pudo eliminar la petición. Por favor, intente nuevamente.", "Error")
     }
   }
 
@@ -705,9 +452,8 @@ export default function EditarPeticionPage({ params }) {
                     <Select
                       value={formData.clasificacion_id}
                       onValueChange={(value) => handleSelectChange("clasificacion_id", value)}
-                      required
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="clasificacion">
                         <SelectValue placeholder="Seleccionar clasificación" />
                       </SelectTrigger>
                       <SelectContent>
@@ -726,7 +472,7 @@ export default function EditarPeticionPage({ params }) {
                       value={formData.legislador_id}
                       onValueChange={(value) => handleSelectChange("legislador_id", value)}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="legislador">
                         <SelectValue placeholder="Seleccionar legislador" />
                       </SelectTrigger>
                       <SelectContent>
@@ -747,7 +493,6 @@ export default function EditarPeticionPage({ params }) {
                       type="date"
                       value={formData.fecha_recibido}
                       onChange={handleInputChange}
-                      required
                     />
                   </div>
                 </div>
@@ -755,78 +500,30 @@ export default function EditarPeticionPage({ params }) {
                 <div className="space-y-2">
                   <Label htmlFor="tema">Tema</Label>
                   <div className="flex gap-2">
-                    <Popover open={openTemaPopover} onOpenChange={setOpenTemaPopover}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={openTemaPopover}
-                          className="w-full justify-between"
-                        >
-                          {formData.tema_id
-                            ? temas.find((tema) => tema.id === formData.tema_id)?.nombre
-                            : "Seleccionar tema"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[300px] p-0">
-                        <Command>
-                          <CommandInput placeholder="Buscar tema..." value={temaSearch} onValueChange={setTemaSearch} />
-                          <CommandList>
-                            <CommandEmpty>
-                              No se encontraron resultados.
-                              <Button
-                                variant="ghost"
-                                className="mt-2 w-full justify-start"
-                                onClick={() => {
-                                  setNuevoTema(temaSearch)
-                                  setOpenNuevoTemaDialog(true)
-                                  setOpenTemaPopover(false)
-                                }}
-                              >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Crear "{temaSearch}"
-                              </Button>
-                            </CommandEmpty>
-                            <CommandGroup>
-                              {temas
-                                .filter((tema) => tema.nombre.toLowerCase().includes(temaSearch.toLowerCase()))
-                                .map((tema) => (
-                                  <CommandItem
-                                    key={tema.id}
-                                    value={tema.id}
-                                    onSelect={() => {
-                                      setFormData((prev) => ({ ...prev, tema_id: tema.id }))
-                                      setOpenTemaPopover(false)
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        formData.tema_id === tema.id ? "opacity-100" : "opacity-0",
-                                      )}
-                                    />
-                                    {tema.nombre}
-                                  </CommandItem>
-                                ))}
-                            </CommandGroup>
-                          </CommandList>
-                          <div className="p-2 border-t">
-                            <Button
-                              variant="ghost"
-                              className="w-full justify-start"
-                              onClick={() => {
-                                setOpenNuevoTemaDialog(true)
-                                setOpenTemaPopover(false)
-                              }}
-                            >
-                              <Plus className="mr-2 h-4 w-4" />
-                              Crear nuevo tema
-                            </Button>
-                          </div>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
+                    <Select
+                      value={formData.tema_id}
+                      onValueChange={(value) => {
+                        if (value === "nuevo") {
+                          setOpenNuevoTemaDialog(true)
+                        } else {
+                          handleSelectChange("tema_id", value)
+                        }
+                      }}
+                    >
+                      <SelectTrigger id="tema" className="w-full">
+                        <SelectValue placeholder="Seleccionar tema" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {temas.map((tema) => (
+                          <SelectItem key={tema.id} value={tema.id}>
+                            {tema.nombre}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="nuevo" className="text-blue-600 font-medium">
+                          + Crear nuevo tema
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
@@ -839,7 +536,6 @@ export default function EditarPeticionPage({ params }) {
                     value={formData.detalles}
                     onChange={handleInputChange}
                     placeholder="Descripción detallada de la petición..."
-                    required
                   />
                 </div>
               </TabsContent>
@@ -860,89 +556,37 @@ export default function EditarPeticionPage({ params }) {
                 <div className="space-y-2">
                   <Label htmlFor="asesor">Asesor</Label>
                   <div className="flex gap-2">
-                    <Popover open={openAsesorPopover} onOpenChange={setOpenAsesorPopover}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={openAsesorPopover}
-                          className="w-full justify-between"
-                        >
-                          {formData.asesor_id
-                            ? asesores.find((asesor) => asesor.id === formData.asesor_id)?.name
-                            : "Seleccionar asesor"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[300px] p-0">
-                        <Command>
-                          <CommandInput
-                            placeholder="Buscar asesor..."
-                            value={asesorSearch}
-                            onValueChange={setAsesorSearch}
-                          />
-                          <CommandList>
-                            <CommandEmpty>
-                              No se encontraron resultados.
-                              <Button
-                                variant="ghost"
-                                className="mt-2 w-full justify-start"
-                                onClick={() => {
-                                  setNuevoAsesor({ ...nuevoAsesor, name: asesorSearch })
-                                  setOpenNuevoAsesorDialog(true)
-                                  setOpenAsesorPopover(false)
-                                }}
-                              >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Crear "{asesorSearch}"
-                              </Button>
-                            </CommandEmpty>
-                            <CommandGroup>
-                              {asesores
-                                .filter((asesor) => asesor.name.toLowerCase().includes(asesorSearch.toLowerCase()))
-                                .map((asesor) => (
-                                  <CommandItem
-                                    key={asesor.id}
-                                    value={asesor.id}
-                                    onSelect={() => {
-                                      setFormData((prev) => ({ ...prev, asesor_id: asesor.id }))
-                                      setOpenAsesorPopover(false)
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        formData.asesor_id === asesor.id ? "opacity-100" : "opacity-0",
-                                      )}
-                                    />
-                                    {asesor.name}
-                                  </CommandItem>
-                                ))}
-                            </CommandGroup>
-                          </CommandList>
-                          <div className="p-2 border-t">
-                            <Button
-                              variant="ghost"
-                              className="w-full justify-start"
-                              onClick={() => {
-                                setOpenNuevoAsesorDialog(true)
-                                setOpenAsesorPopover(false)
-                              }}
-                            >
-                              <Plus className="mr-2 h-4 w-4" />
-                              Crear nuevo asesor
-                            </Button>
-                          </div>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
+                    <Select
+                      value={formData.asesor_id}
+                      onValueChange={(value) => {
+                        if (value === "nuevo") {
+                          setOpenNuevoAsesorDialog(true)
+                        } else {
+                          handleSelectChange("asesor_id", value)
+                        }
+                      }}
+                    >
+                      <SelectTrigger id="asesor" className="w-full">
+                        <SelectValue placeholder="Seleccionar asesor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {asesores.map((asesor) => (
+                          <SelectItem key={asesor.id} value={asesor.id}>
+                            {asesor.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="nuevo" className="text-blue-600 font-medium">
+                          + Crear nuevo asesor
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="status">Estatus</Label>
                   <Select value={formData.status} onValueChange={(value) => handleSelectChange("status", value)}>
-                    <SelectTrigger>
+                    <SelectTrigger id="status">
                       <SelectValue placeholder="Seleccionar estatus" />
                     </SelectTrigger>
                     <SelectContent>
@@ -970,7 +614,12 @@ export default function EditarPeticionPage({ params }) {
                   <Switch
                     id="tramite_despachado"
                     checked={formData.tramite_despachado}
-                    onCheckedChange={(checked) => handleSwitchChange("tramite_despachado", checked)}
+                    onCheckedChange={(checked) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        tramite_despachado: checked,
+                      }))
+                    }}
                   />
                   <Label htmlFor="tramite_despachado">Trámite despachado</Label>
                 </div>
