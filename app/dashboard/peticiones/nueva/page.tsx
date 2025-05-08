@@ -28,6 +28,7 @@ import { Check, ChevronsUpDown } from "lucide-react"
 import { CommandList } from "@/components/ui/command"
 import { PeticionDocumentUploader } from "@/components/peticion-document-uploader"
 import { useNotify } from "@/lib/notifications"
+import { EstatusSelector } from "@/components/estatus-selector"
 
 export default function NuevaPeticionPage() {
   const router = useRouter()
@@ -37,6 +38,7 @@ export default function NuevaPeticionPage() {
   const [clasificaciones, setClasificaciones] = useState([])
   const [legisladores, setLegisladores] = useState([])
   const [temas, setTemas] = useState([])
+  const [estatusList, setEstatusList] = useState([])
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [isUploading, setIsUploading] = useState(false)
   const [legisladorSearch, setLegisladorSearch] = useState("")
@@ -61,7 +63,7 @@ export default function NuevaPeticionPage() {
     // Tab 2: Trámites
     fecha_asignacion: "",
     asesor_id: "", // Cambiado de asesor a asesor_id
-    status: "Recibida",
+    peticionEstatus_id: "", // Usamos peticionEstatus_id en lugar de status
     comentarios: "",
     tramite_despachado: false,
 
@@ -69,7 +71,7 @@ export default function NuevaPeticionPage() {
     archivado: false,
   })
 
-  // Cargar listas de asesores, clasificaciones y legisladores
+  // Cargar listas de asesores, clasificaciones, legisladores y estatus
   useEffect(() => {
     const fetchData = async () => {
       const supabase = createClientClient()
@@ -120,6 +122,30 @@ export default function NuevaPeticionPage() {
         console.error("Error fetching temas:", temasError)
       } else {
         setTemas(temasData || [])
+      }
+
+      // Obtener estatus
+      const { data: estatusData, error: estatusError } = await supabase
+        .from("peticionEstatus")
+        .select("id, nombre")
+        .order("nombre")
+
+      if (estatusError) {
+        console.error("Error fetching estatus:", estatusError)
+      } else {
+        setEstatusList(estatusData || [])
+        // Si hay estatus disponibles, establecer el primero como predeterminado
+        if (estatusData && estatusData.length > 0) {
+          // Buscar el estatus "Recibida" o similar
+          const recibidaEstatus = estatusData.find(
+            (e) => e.nombre.toLowerCase() === "recibida" || e.nombre.toLowerCase() === "recibido",
+          )
+
+          setFormData((prev) => ({
+            ...prev,
+            peticionEstatus_id: recibidaEstatus ? recibidaEstatus.id : estatusData[0].id,
+          }))
+        }
       }
     }
 
@@ -297,7 +323,8 @@ export default function NuevaPeticionPage() {
         year: yearFull,
         mes: fechaRecibido.getMonth() + 1,
         fecha_asignacion: formData.fecha_asignacion || null,
-        status: formData.status,
+        // Eliminamos el campo status que no existe en la tabla
+        peticionEstatus_id: formData.peticionEstatus_id || null, // Usamos peticionEstatus_id en su lugar
         comentarios: formData.comentarios,
         tramite_despachado: formData.tramite_despachado,
         archivado: formData.archivado,
@@ -622,18 +649,12 @@ export default function NuevaPeticionPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="status">Estatus</Label>
-                  <Select value={formData.status} onValueChange={(value) => handleSelectChange("status", value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar estatus" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Recibida">Recibida</SelectItem>
-                      <SelectItem value="Asignada">Asignada</SelectItem>
-                      <SelectItem value="En revisión">En revisión</SelectItem>
-                      <SelectItem value="Despachada">Despachada</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="estatus">Estatus</Label>
+                  {/* Reemplazamos el Select anterior por el EstatusSelector */}
+                  <EstatusSelector
+                    value={formData.peticionEstatus_id}
+                    onValueChange={(value) => handleSelectChange("peticionEstatus_id", value)}
+                  />
                 </div>
 
                 <div className="space-y-2">
