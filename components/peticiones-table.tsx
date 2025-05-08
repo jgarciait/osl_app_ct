@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Check,
   RefreshCw,
+  AlertTriangleIcon,
 } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
@@ -30,7 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { toast } from "@/components/ui/use-toast"
+import { useNotify } from "@/lib/notifications"
 import { createClientClient } from "@/lib/supabase-client"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
@@ -39,6 +40,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js"
 
 export function PeticionesTable({ peticiones, years, tagMap }) {
   const router = useRouter()
+  const notify = useNotify() // Añadir esta línea
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedYear, setSelectedYear] = useState("all")
   const [selectedStatus, setSelectedStatus] = useState("all")
@@ -48,6 +50,7 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
   const [groupByAsesor, setGroupByAsesor] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isSendingReminder, setIsSendingReminder] = useState(false)
   const supabase = createClientClient()
 
   // Paginación
@@ -103,21 +106,14 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
 
       if (error) throw error
 
-      toast({
-        title: "Estatus actualizado",
-        description: "El estatus de la petición ha sido actualizado correctamente.",
-      })
+      notify.success("El estatus de la petición ha sido actualizado correctamente.", "Estatus actualizado")
     } catch (error) {
       console.error("Error al actualizar estatus:", error)
 
       // Si hay error, revertir el cambio en el estado local
       handleRefresh()
 
-      toast({
-        title: "Error",
-        description: "No se pudo actualizar el estatus de la petición.",
-        variant: "destructive",
-      })
+      notify.error("No se pudo actualizar el estatus de la petición.", "Error")
     }
   }
 
@@ -216,18 +212,12 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
               // Añadir la nueva petición al estado
               setLocalPeticiones((prev) => [processedPeticion, ...prev])
 
-              toast({
-                title: "Nueva petición",
-                description: "Se ha añadido una nueva petición.",
-              })
+              notify.success("Se ha añadido una nueva petición.", "Nueva petición")
             } else if (payload.eventType === "DELETE") {
               // Eliminar la petición del estado
               setLocalPeticiones((prev) => prev.filter((pet) => pet.id !== payload.old.id))
 
-              toast({
-                title: "Petición eliminada",
-                description: "Una petición ha sido eliminada.",
-              })
+              notify.success("Una petición ha sido eliminada.", "Petición eliminada")
             }
           } catch (error) {
             console.error("Error al procesar cambio en tiempo real:", error)
@@ -324,7 +314,7 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
           temasPeticiones(id, nombre)
         ),
         peticiones_asesores(
-          asesores(id, name, color)
+          asesores(id, name, color, email)
         )
       `)
         .order("created_at", { ascending: false })
@@ -344,9 +334,10 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
         // Obtener el nombre del tema si existe
         const temaNombre = peticion.peticiones_temas?.[0]?.temasPeticiones?.nombre || "-"
 
-        // Obtener el nombre y color del asesor si existe
+        // Obtener el nombre, color y email del asesor si existe
         const asesorNombre = peticion.peticiones_asesores?.[0]?.asesores?.name || "-"
         const asesorColor = peticion.peticiones_asesores?.[0]?.asesores?.color || null
+        const asesorEmail = peticion.peticiones_asesores?.[0]?.asesores?.email || null
 
         // Obtener el nombre y color del estatus si existe
         const estatusNombre = peticion.peticionEstatus?.nombre || "-"
@@ -359,6 +350,7 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
           temaNombre,
           asesorNombre,
           asesorColor,
+          asesorEmail,
           estatusNombre,
           estatusColor,
         }
@@ -376,19 +368,98 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
         setEstatus(estatusData)
       }
 
-      toast({
-        title: "Datos actualizados",
-        description: "Los datos de peticiones han sido actualizados correctamente.",
-      })
+      notify.success("Los datos de peticiones han sido actualizados correctamente.", "Datos actualizados")
     } catch (error) {
       console.error("Error al recargar datos:", error)
-      toast({
-        title: "Error",
-        description: "No se pudieron recargar los datos. Por favor, intente nuevamente.",
-        variant: "destructive",
-      })
+      notify.error("No se pudieron recargar los datos. Por favor, intente nuevamente.", "Error")
     } finally {
       setIsRefreshing(false)
+    }
+  }
+
+  // Actualizar la función handlePanicButton para usar el mismo sistema de notificaciones que se usa en la creación de peticiones
+
+  // Función para enviar correo de pánico
+  const handlePanicButton = async (peticion) => {
+    try {
+      setIsSendingReminder(true)
+
+      // Mostrar notificación de inicio del proceso
+      notify.info("Procesando el envío del recordatorio al asesor.", "Enviando recordatorio...")
+
+      // Obtener el correo del asesor si no lo tenemos
+      let asesorEmail = peticion.asesorEmail
+
+      if (!asesorEmail) {
+        // Intentar obtener el correo del asesor desde la base de datos
+        const { data: asesorData, error: asesorError } = await supabase
+          .from("peticiones_asesores")
+          .select("asesores(id, email, name)")
+          .eq("peticiones_id", peticion.id)
+          .single()
+
+        if (!asesorError && asesorData?.asesores?.email) {
+          asesorEmail = asesorData.asesores.email
+          // Actualizar también el nombre si está disponible
+          if (asesorData.asesores.name) {
+            peticion.asesorNombre = asesorData.asesores.name
+          }
+        }
+      }
+
+      // Verificar si tenemos el correo del asesor
+      if (!asesorEmail) {
+        notify.error(
+          `No se encontró un correo electrónico para el asesor ${peticion.asesorNombre || "asignado"}. Por favor, actualice la información del asesor.`,
+          "No se pudo enviar el recordatorio",
+        )
+        return
+      }
+
+      // Preparar los datos para enviar a la API
+      const reminderData = {
+        asesorEmail,
+        asesorNombre: peticion.asesorNombre,
+        num_peticion: peticion.num_peticion,
+        clasificacionNombre: peticion.clasificacionNombre,
+        legislador: peticion.legislador,
+        temaNombre: peticion.temaNombre,
+        estatusNombre: peticion.estatusNombre,
+        fecha_asignacion: peticion.fecha_asignacion,
+        fecha_limite: peticion.fecha_limite,
+        detalles: peticion.detalles,
+      }
+
+      // Llamar a nuestra API para enviar el correo
+      const response = await fetch("/api/send-reminder", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(reminderData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Error al enviar el recordatorio")
+      }
+
+      // Mostrar notificación de éxito con más detalles
+      notify.success(
+        `Se ha enviado un recordatorio a ${peticion.asesorNombre} (${asesorEmail}) sobre la petición ${peticion.num_peticion || "sin número"}.`,
+        "Recordatorio enviado exitosamente",
+      )
+    } catch (error) {
+      console.error("Error al enviar recordatorio:", error)
+
+      // Mostrar notificación de error detallada
+      notify.error(
+        error.message || "Ocurrió un error al enviar el recordatorio. Por favor, inténtelo de nuevo.",
+        "Error al enviar recordatorio",
+      )
+    } finally {
+      setIsSendingReminder(false)
     }
   }
 
@@ -532,11 +603,7 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
   const handleDeletePeticion = useCallback(
     async (id) => {
       if (!id) {
-        toast({
-          title: "Error",
-          description: "ID de petición no válido",
-          variant: "destructive",
-        })
+        notify.error("ID de petición no válido", "Error")
         return
       }
 
@@ -685,21 +752,20 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
         setDeleteDialogOpen(false)
         setPeticionToDelete(null)
 
-        toast({
-          title: "Petición eliminada",
-          description: "La petición, sus documentos y archivos asociados han sido eliminados correctamente.",
-        })
+        notify.success(
+          "La petición, sus documentos y archivos asociados han sido eliminados correctamente.",
+          "Petición eliminada",
+        )
 
         // Forzar actualización de la interfaz
         router.refresh()
       } catch (error) {
         console.error("Error completo al eliminar la petición:", error)
 
-        toast({
-          title: "Error al eliminar",
-          description: error.message || "Ocurrió un error al eliminar la petición. Por favor, inténtalo de nuevo.",
-          variant: "destructive",
-        })
+        notify.error(
+          error.message || "Ocurrió un error al eliminar la petición. Por favor, inténtalo de nuevo.",
+          "Error al eliminar",
+        )
       } finally {
         setIsDeleting(false)
       }
@@ -805,6 +871,14 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
               <DropdownMenuItem onClick={() => handleEditPeticion(peticion.id)}>
                 <EditIcon className="mr-2 h-4 w-4" />
                 <span>Editar</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handlePanicButton(peticion)}
+                className="text-amber-600 focus:text-amber-600"
+                disabled={isSendingReminder}
+              >
+                <AlertTriangleIcon className="mr-2 h-4 w-4" />
+                <span>{isSendingReminder ? "Enviando..." : "Botón de Pánico"}</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openDeleteDialog(peticion)} className="text-red-600 focus:text-red-600">
                 <TrashIcon className="mr-2 h-4 w-4" />
