@@ -389,11 +389,11 @@ export default function EditarPeticionPage({ params }) {
       }
 
       // 4. Asesor
-      if (formData.asesor_id) {
-        // Eliminar relaciones existentes
-        await supabase.from("peticiones_asesores").delete().eq("peticiones_id", id)
+      // Eliminar relaciones existentes de asesor independientemente de si hay un nuevo asesor seleccionado
+      await supabase.from("peticiones_asesores").delete().eq("peticiones_id", id)
 
-        // Crear nueva relación
+      // Solo crear nueva relación si hay un asesor seleccionado
+      if (formData.asesor_id) {
         await supabase.from("peticiones_asesores").insert({
           peticiones_id: id,
           asesores_id: formData.asesor_id,
@@ -638,6 +638,9 @@ export default function EditarPeticionPage({ params }) {
                       onValueChange={(value) => {
                         if (value === "nuevo") {
                           setOpenNuevoAsesorDialog(true)
+                        } else if (value === "clear") {
+                          // Limpiar el campo de asesor
+                          handleSelectChange("asesor_id", "")
                         } else {
                           handleSelectChange("asesor_id", value)
                         }
@@ -652,6 +655,9 @@ export default function EditarPeticionPage({ params }) {
                             {asesor.name}
                           </SelectItem>
                         ))}
+                        <SelectItem value="clear" className="text-red-600 font-medium">
+                          - Eliminar selección
+                        </SelectItem>
                         <SelectItem value="nuevo" className="text-blue-600 font-medium">
                           + Crear nuevo asesor
                         </SelectItem>
