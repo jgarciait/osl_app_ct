@@ -157,6 +157,13 @@ export function AppSidebar() {
       permission: { resource: "status_requests", action: "view" }, // O el permiso que corresponda
       isActive: pathname === "/dashboard/estatus-peticiones",
     },
+    {
+      title: "Asesores",
+      icon: UserCog,
+      href: "/dashboard/asesores",
+      isActive: pathname === "/dashboard/asesores" || pathname.startsWith("/dashboard/asesores/"),
+      permission: { resource: "advisors", action: "view" },
+    },
     // Se ha eliminado la sección de Etiquetas
     // Se ha eliminado la sección de Reportes
     // Se ha eliminado la sección de Bugs
