@@ -48,7 +48,7 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
   const [sortColumn, setSortColumn] = useState("created_at")
   const [sortDirection, setSortDirection] = useState("desc")
   const [groupByAsesor, setGroupByAsesor] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false) // Corregido: inicializado con false en lugar de isDeleting
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isSendingReminder, setIsSendingReminder] = useState(false)
   const supabase = createClientClient()

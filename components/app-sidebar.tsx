@@ -6,7 +6,7 @@ import Link from "next/link"
 import { createClientClient } from "@/lib/supabase-client"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
-import { FileText, Landmark, Settings, LogOut, Home, BookOpen, UserCog, Folder, TagIcon } from "lucide-react"
+import { FileText, Landmark, Settings, LogOut, Home, BookOpen, UserCog, Folder, TagIcon, Users } from "lucide-react"
 import Image from "next/image"
 import { createContext, useContext, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
@@ -159,10 +159,22 @@ export function AppSidebar() {
     },
     {
       title: "Asesores",
-      icon: UserCog,
+      icon: Users,
       href: "/dashboard/asesores",
       isActive: pathname === "/dashboard/asesores" || pathname.startsWith("/dashboard/asesores/"),
       permission: { resource: "advisors", action: "view" },
+      children: [
+        {
+          title: "Gestión de Asesores",
+          href: "/dashboard/asesores",
+          isActive: pathname === "/dashboard/asesores",
+        },
+        {
+          title: "Configuración de Colores",
+          href: "/dashboard/asesores/colores",
+          isActive: pathname === "/dashboard/asesores/colores",
+        },
+      ],
     },
     // Se ha eliminado la sección de Etiquetas
     // Se ha eliminado la sección de Reportes
