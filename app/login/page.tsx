@@ -57,16 +57,15 @@ export default function LoginPage() {
       <div className="lg:p-8">
         <FadeIn delay={0.2}>
           <div className="text-center mb-6">
-            <h1 className="text-[#14294b] font-bold text-xl mb-1">Oficina de Estudios Legislativos</h1>
-            <h1 className="text-[#14294b] font-bold text-xl mb-4">y Consultoría Técnica</h1>
+            <h1 className="text-2xl font-script">Oficina de Estudios Legislativos</h1>
+            <h1 className="text-2xl font-script mb-2">y Consultoría Técnica</h1>
             <div className="w-16 h-1 bg-[#14294b] mx-auto rounded-full"></div>
           </div>
         </FadeIn>
         <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
           <FadeIn delay={0.3}>
             <div className="flex flex-col space-y-2 text-center">
-              <h1 className="text-2xl font-semibold tracking-tight">Iniciar sesión</h1>
-              <p className="text-sm text-muted-foreground">Ingrese sus credenciales para acceder al sistema</p>
+              <h1 className="text-xl text-gray-800">Iniciar sesión</h1>
             </div>
           </FadeIn>
           <FadeIn delay={0.4}>

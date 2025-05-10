@@ -4,6 +4,7 @@ import { useState, useCallback } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DashboardCharts } from "@/components/dashboard-charts"
 import { InteractiveGraph } from "@/components/interactive-graph"
+import { DashboardMetrics } from "@/components/dashboard-metrics"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Maximize2, Minimize2 } from "lucide-react"
@@ -27,9 +28,10 @@ export default function DashboardPage() {
       <Card className="h-full">
         <CardContent className="w-full h-full">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-            <TabsList className="grid grid-cols-2 gap-2">
+            <TabsList className="grid grid-cols-3 gap-2">
               <TabsTrigger value="charts">Gráficos</TabsTrigger>
               <TabsTrigger value="graph">Vista de Grafo</TabsTrigger>
+              <TabsTrigger value="metrics">Métricas</TabsTrigger>
             </TabsList>
 
             <TabsContent value="charts" className="space-y-4">
@@ -68,6 +70,10 @@ export default function DashboardPage() {
               <div className={isFullscreen ? "h-[calc(100vh-100px)]" : ""}>
                 <InteractiveGraph relationshipType={graphType as any} />
               </div>
+            </TabsContent>
+
+            <TabsContent value="metrics" className="space-y-4">
+              <DashboardMetrics />
             </TabsContent>
           </Tabs>
         </CardContent>

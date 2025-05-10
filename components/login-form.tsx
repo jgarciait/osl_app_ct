@@ -56,10 +56,10 @@ export function LoginForm({ isLoggedIn = false }) {
       <form onSubmit={handleSubmit} className="space-y-4">
         <FadeIn delay={0.1}>
           <div className="space-y-2">
-            <Label htmlFor="email">Correo electrónico</Label>
+            <Label className="text-sm text-gray-600" htmlFor="email">Correo electrónico</Label>
             <Input
               id="email"
-              placeholder="nombre@ejemplo.com"
+              placeholder="ejemplo@oslpr.org"
               type="email"
               autoCapitalize="none"
               autoComplete="email"
@@ -75,7 +75,7 @@ export function LoginForm({ isLoggedIn = false }) {
         <FadeIn delay={0.2}>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password">Contraseña</Label>
+              <Label className="text-sm text-gray-600" htmlFor="password">Contraseña</Label>
               <Link href="/forgot-password" className="text-sm text-muted-foreground hover:underline">
                 ¿Olvidó su contraseña?
               </Link>
