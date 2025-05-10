@@ -3,6 +3,8 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { NotificationProvider } from "@/contexts/notification-context"
 import { ThemeProvider } from "@/components/theme-provider"
+import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -22,12 +24,21 @@ export const metadata = {
   },
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Crear cliente de Supabase del lado del servidor
+  const supabase = createServerSupabaseClient()
+
+  // Obtener la sesión actual (esto no bloquea la renderización)
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <NotificationProvider>{children}</NotificationProvider>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

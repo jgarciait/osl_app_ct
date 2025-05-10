@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClientComponentClient } from "@/lib/supabase/client"
 
 export type PeticionWithTimes = {
   id: string
   num_peticion: string
   clasificacion: string
   tema?: string
-  fecha_recibido: string
+  fecha_recibido: string | null
   fecha_asignacion: string | null
   fecha_despacho: string | null
   tiempoRecepcionAsignacion: string
@@ -31,22 +31,27 @@ export type MetricsData = {
 const calcularDiasEntreFechas = (fecha1: string | null, fecha2: string | null): number => {
   if (!fecha1 || !fecha2) return 0
 
-  const date1 = new Date(fecha1)
-  const date2 = new Date(fecha2)
+  try {
+    const date1 = new Date(fecha1)
+    const date2 = new Date(fecha2)
 
-  // Verificar que las fechas sean válidas
-  if (isNaN(date1.getTime()) || isNaN(date2.getTime())) {
-    console.warn("Fechas inválidas:", { fecha1, fecha2 })
+    // Verificar que las fechas sean válidas
+    if (isNaN(date1.getTime()) || isNaN(date2.getTime())) {
+      console.warn("Fechas inválidas:", { fecha1, fecha2 })
+      return 0
+    }
+
+    // Diferencia en milisegundos
+    const diffTime = Math.abs(date2.getTime() - date1.getTime())
+
+    // Convertir a días
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+    return diffDays
+  } catch (error) {
+    console.error("Error calculando días entre fechas:", error, { fecha1, fecha2 })
     return 0
   }
-
-  // Diferencia en milisegundos
-  const diffTime = Math.abs(date2.getTime() - date1.getTime())
-
-  // Convertir a días
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-  return diffDays
 }
 
 const formatearDias = (dias: number): string => {
@@ -64,46 +69,51 @@ export function usePeticionesMetrics(): MetricsData {
   })
 
   useEffect(() => {
+    let isMounted = true
+
     const fetchMetrics = async () => {
       try {
         const supabase = createClientComponentClient()
 
-        console.log("Fetching peticiones data...")
+        console.log("Iniciando obtención de peticiones...")
 
-        // Obtener todas las peticiones sin filtros
-        const { data: peticiones, error } = await supabase
-          .from("peticiones")
-          .select("*")
-          .order("created_at", { ascending: false })
+        // Consulta a la tabla peticiones (solo funcionará si el usuario está autenticado)
+        const { data, error } = await supabase.from("peticiones").select("*").order("created_at", { ascending: false })
 
         if (error) {
-          console.error("Error fetching peticiones:", error)
+          console.error("Error al obtener peticiones:", error)
           throw error
         }
 
-        console.log(`Fetched ${peticiones?.length || 0} peticiones:`, peticiones)
+        console.log(`Obtenidas ${data?.length || 0} peticiones:`, data)
 
-        if (!peticiones || peticiones.length === 0) {
-          setMetricsData({
-            promedioRecepcionAsignacion: 0,
-            promedioAsignacionDespacho: 0,
-            promedioTotal: 0,
-            peticionesRecientes: [],
-            isLoading: false,
-            error: "No hay peticiones disponibles",
-          })
+        // Si no hay datos, mostrar mensaje pero no error
+        if (!data || data.length === 0) {
+          console.log("No se encontraron peticiones en la base de datos")
+          if (isMounted) {
+            setMetricsData({
+              promedioRecepcionAsignacion: 0,
+              promedioAsignacionDespacho: 0,
+              promedioTotal: 0,
+              peticionesRecientes: [],
+              isLoading: false,
+              error: "No hay peticiones disponibles en la base de datos.",
+            })
+          }
           return
         }
 
         // Procesar peticiones y calcular tiempos
-        const peticionesConTiempos: PeticionWithTimes[] = peticiones.map((peticion) => {
-          // Asegurarse de que las fechas sean strings válidos
+        const peticionesConTiempos: PeticionWithTimes[] = data.map((peticion) => {
+          // Convertir fechas a formato string si no lo son ya
           const fechaRecibido = peticion.fecha_recibido ? String(peticion.fecha_recibido) : null
           const fechaAsignacion = peticion.fecha_asignacion ? String(peticion.fecha_asignacion) : null
           const fechaDespacho = peticion.fecha_despacho ? String(peticion.fecha_despacho) : null
 
           console.log("Procesando petición:", {
             id: peticion.id,
+            num_peticion: peticion.num_peticion,
+            clasificacion: peticion.clasificacion,
             fechaRecibido,
             fechaAsignacion,
             fechaDespacho,
@@ -123,7 +133,7 @@ export function usePeticionesMetrics(): MetricsData {
             num_peticion: peticion.num_peticion || `P-${peticion.id.substring(0, 8)}`,
             clasificacion: peticion.clasificacion || "No especificada",
             tema: "No especificado", // Aquí se podría buscar el tema relacionado
-            fecha_recibido: fechaRecibido || "",
+            fecha_recibido: fechaRecibido,
             fecha_asignacion: fechaAsignacion,
             fecha_despacho: fechaDespacho,
             tiempoRecepcionAsignacion: formatearDias(tiempoRecepcionAsignacionDias),
@@ -135,12 +145,12 @@ export function usePeticionesMetrics(): MetricsData {
           }
         })
 
-        console.log("Processed peticiones with times:", peticionesConTiempos)
+        console.log("Peticiones procesadas con tiempos:", peticionesConTiempos)
 
         // Calcular promedios solo con peticiones que tienen las fechas necesarias
-        const peticionesConAsignacion = peticionesConTiempos.filter((p) => p.fecha_asignacion && p.fecha_recibido)
-        const peticionesCompletadas = peticionesConTiempos.filter((p) => p.fecha_despacho && p.fecha_asignacion)
-        const peticionesTotales = peticionesConTiempos.filter((p) => p.fecha_despacho && p.fecha_recibido)
+        const peticionesConAsignacion = peticionesConTiempos.filter((p) => p.fecha_recibido && p.fecha_asignacion)
+        const peticionesCompletadas = peticionesConTiempos.filter((p) => p.fecha_asignacion && p.fecha_despacho)
+        const peticionesTotales = peticionesConTiempos.filter((p) => p.fecha_recibido && p.fecha_despacho)
 
         console.log(`Peticiones con asignación: ${peticionesConAsignacion.length}`)
         console.log(`Peticiones completadas: ${peticionesCompletadas.length}`)
@@ -163,32 +173,43 @@ export function usePeticionesMetrics(): MetricsData {
             ? peticionesTotales.reduce((sum, p) => sum + p.tiempoTotalDias, 0) / peticionesTotales.length
             : 0
 
-        console.log("Calculated averages:", {
+        console.log("Promedios calculados:", {
           promedioRecepcionAsignacion,
           promedioAsignacionDespacho,
           promedioTotal,
         })
 
         // Actualizar estado con los datos calculados
-        setMetricsData({
-          promedioRecepcionAsignacion,
-          promedioAsignacionDespacho,
-          promedioTotal,
-          peticionesRecientes: peticionesConTiempos,
-          isLoading: false,
-          error: null,
-        })
+        if (isMounted) {
+          setMetricsData({
+            promedioRecepcionAsignacion,
+            promedioAsignacionDespacho,
+            promedioTotal,
+            peticionesRecientes: peticionesConTiempos,
+            isLoading: false,
+            error: null,
+          })
+        }
       } catch (error) {
         console.error("Error al obtener métricas:", error)
-        setMetricsData((prev) => ({
-          ...prev,
-          isLoading: false,
-          error: `Error al cargar los datos de métricas: ${error instanceof Error ? error.message : String(error)}`,
-        }))
+        if (isMounted) {
+          setMetricsData({
+            promedioRecepcionAsignacion: 0,
+            promedioAsignacionDespacho: 0,
+            promedioTotal: 0,
+            peticionesRecientes: [],
+            isLoading: false,
+            error: `Error al cargar los datos de métricas: ${error instanceof Error ? error.message : String(error)}`,
+          })
+        }
       }
     }
 
     fetchMetrics()
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   return metricsData

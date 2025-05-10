@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Save, Clock } from "lucide-react"
+import { ArrowLeft, Save, Clock, ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
@@ -480,8 +480,78 @@ export default function EditarPeticionPage({ params }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <h1 className="text-2xl font-bold">Editar Petición</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">Editar Petición</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={async () => {
+              if (isLoading || isSaving) return
+              setIsLoading(true)
+              try {
+                const supabase = createClientClient()
+                // Obtener todas las peticiones ordenadas por num_peticion
+                const { data } = await supabase.from("peticiones").select("id, num_peticion").order("num_peticion")
+
+                if (data && data.length > 0) {
+                  // Encontrar el índice de la petición actual
+                  const currentIndex = data.findIndex((p) => p.id === id)
+                  if (currentIndex > 0) {
+                    // Navegar a la petición anterior
+                    router.push(`/dashboard/peticiones/${data[currentIndex - 1].id}/editar`)
+                  } else {
+                    notify.info("Esta es la primera petición", "Navegación")
+                  }
+                }
+              } catch (error) {
+                console.error("Error al navegar:", error)
+                notify.error("Error al navegar entre peticiones", "Error")
+              } finally {
+                setIsLoading(false)
+              }
+            }}
+            disabled={isLoading || isSaving}
+            title="Petición anterior"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={async () => {
+              if (isLoading || isSaving) return
+              setIsLoading(true)
+              try {
+                const supabase = createClientClient()
+                // Obtener todas las peticiones ordenadas por num_peticion
+                const { data } = await supabase.from("peticiones").select("id, num_peticion").order("num_peticion")
+
+                if (data && data.length > 0) {
+                  // Encontrar el índice de la petición actual
+                  const currentIndex = data.findIndex((p) => p.id === id)
+                  if (currentIndex < data.length - 1 && currentIndex !== -1) {
+                    // Navegar a la siguiente petición
+                    router.push(`/dashboard/peticiones/${data[currentIndex + 1].id}/editar`)
+                  } else {
+                    notify.info("Esta es la última petición", "Navegación")
+                  }
+                }
+              } catch (error) {
+                console.error("Error al navegar:", error)
+                notify.error("Error al navegar entre peticiones", "Error")
+              } finally {
+                setIsLoading(false)
+              }
+            }}
+            disabled={isLoading || isSaving}
+            title="Siguiente petición"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <form onSubmit={(e) => e.preventDefault()}>
@@ -684,6 +754,18 @@ export default function EditarPeticionPage({ params }) {
                     value={formData.comentarios}
                     onChange={handleInputChange}
                     placeholder="Comentarios adicionales sobre el trámite..."
+                  />
+                </div>
+
+                <div className="space-y-2 mb-4">
+                  <Label htmlFor="fecha_despacho">Fecha de Despacho</Label>
+                  <Input
+                    id="fecha_despacho"
+                    name="fecha_despacho"
+                    type="date"
+                    value={formData.fecha_despacho}
+                    onChange={handleInputChange}
+                    placeholder="Seleccione la fecha de despacho"
                   />
                 </div>
 
