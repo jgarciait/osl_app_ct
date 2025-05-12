@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { usePathname, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { PlusCircle, PanelLeft, ListFilter } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { PlusCircle, PanelLeft, ListFilter, ArrowLeft } from "lucide-react"
 import { useSidebarContext } from "@/components/app-sidebar"
 import { useGroupPermissions } from "@/hooks/use-group-permissions"
 import { useEffect, useState } from "react"
@@ -22,9 +23,15 @@ export function DashboardHeader() {
   const [expresionNumero, setExpresionNumero] = useState<string | null>(null)
   const [isAvailableNumbersDialogOpen, setIsAvailableNumbersDialogOpen] = useState(false)
 
+  // Estado para almacenar la información de la petición
+  const [peticion, setPeticion] = useState<any>(null)
+
   // Verificar si estamos en la página de edición de expresión
   const isEditingExpresion = pathname.includes("/dashboard/expresiones") && pathname.includes("/editar")
   const isViewingExpresion = pathname.includes("/dashboard/expresiones") && pathname.includes("/ver")
+
+  // Verificar si estamos en la página de ver petición
+  const isViewingPeticion = pathname.includes("/dashboard/peticiones") && pathname.includes("/ver")
 
   // Obtener el número de expresión cuando estamos en modo edición
   useEffect(() => {
@@ -40,7 +47,23 @@ export function DashboardHeader() {
 
       fetchExpresionNumero()
     }
-  }, [isEditingExpresion, isViewingExpresion, params.id])
+
+    // Obtener información de la petición cuando estamos viendo una petición
+    if (isViewingPeticion && params.id) {
+      const fetchPeticion = async () => {
+        const supabase = createClientClient()
+        const { data, error } = await supabase.from("peticiones").select("*").eq("id", params.id).single()
+
+        if (!error && data) {
+          setPeticion(data)
+        }
+      }
+
+      fetchPeticion()
+    } else {
+      setPeticion(null)
+    }
+  }, [isEditingExpresion, isViewingExpresion, isViewingPeticion, params.id])
 
   return (
     <header className="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center">
@@ -49,6 +72,14 @@ export function DashboardHeader() {
           <PanelLeft className="h-5 w-5" />
           <span className="sr-only">Toggle Sidebar</span>
         </Button>
+        {isViewingPeticion && (
+          <Button variant="outline" size="sm" asChild className="mr-2">
+            <Link href="/dashboard/peticiones">
+              <ArrowLeft className="mr-1 h-4 w-4" />
+              Ver Peticiones
+            </Link>
+          </Button>
+        )}
         <h1 className="text-xl font-semibold">
           {pathname === "/dashboard" && "Dashboard"}
           {pathname === "/dashboard/expresiones" && "Expresiones"}
@@ -65,6 +96,15 @@ export function DashboardHeader() {
               {expresionNumero && <span className="ml-2 text-black font-bold">{expresionNumero}</span>}
             </span>
           )}
+          {isViewingPeticion && peticion && (
+            <span className="flex items-center gap-2">
+              Petición {peticion.num_peticion || `#${peticion.id.substring(0, 8)}`}
+              <Badge variant={peticion.archivado ? "outline" : "default"}>
+                {peticion.archivado ? "Archivado" : "Activo"}
+              </Badge>
+            </span>
+          )}
+          {pathname === "/dashboard/peticiones" && "Peticiones"}
           {pathname === "/dashboard/documentos" && "Documentos del Sistema"}
           {pathname === "/dashboard/comites" && "Comisiones, Senadores y Representantes"}
           {pathname === "/dashboard/temas" && "Temas"}

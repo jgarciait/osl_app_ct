@@ -757,32 +757,33 @@ export default function EditarPeticionPage({ params }) {
                   />
                 </div>
 
-                <div className="space-y-2 mb-4">
-                  <Label htmlFor="fecha_despacho">Fecha de Despacho</Label>
-                  <Input
-                    id="fecha_despacho"
-                    name="fecha_despacho"
-                    type="date"
-                    value={formData.fecha_despacho}
-                    onChange={handleInputChange}
-                    placeholder="Seleccione la fecha de despacho"
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="tramite_despachado"
-                    checked={formData.tramite_despachado}
-                    onCheckedChange={(checked) => {
-                      const fechaDespacho = checked ? format(new Date(), "yyyy-MM-dd") : ""
-                      setFormData((prev) => ({
-                        ...prev,
-                        tramite_despachado: checked,
-                        fecha_despacho: fechaDespacho,
-                      }))
-                    }}
-                  />
-                  <Label htmlFor="tramite_despachado">Trámite despachado</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="fecha_despacho">Fecha de Despacho</Label>
+                    <Input
+                      id="fecha_despacho"
+                      name="fecha_despacho"
+                      type="date"
+                      value={formData.fecha_despacho}
+                      onChange={handleInputChange}
+                      placeholder="Seleccione la fecha de despacho"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2 md:mt-8">
+                    <Switch
+                      id="tramite_despachado"
+                      checked={formData.tramite_despachado}
+                      onCheckedChange={(checked) => {
+                        const fechaDespacho = checked ? format(new Date(), "yyyy-MM-dd") : ""
+                        setFormData((prev) => ({
+                          ...prev,
+                          tramite_despachado: checked,
+                          fecha_despacho: fechaDespacho,
+                        }))
+                      }}
+                    />
+                    <Label htmlFor="tramite_despachado">Trámite despachado</Label>
+                  </div>
                 </div>
               </TabsContent>
 

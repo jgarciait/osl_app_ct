@@ -38,9 +38,10 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { cn } from "@/lib/utils"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 
-export function PeticionesTable({ peticiones, years, tagMap }) {
+// Añadir canManagePetitions a las props
+export function PeticionesTable({ peticiones, years, tagMap, canManagePetitions = false }) {
   const router = useRouter()
-  const notify = useNotify() // Añadir esta línea
+  const notify = useNotify()
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedYear, setSelectedYear] = useState("all")
   const [selectedStatus, setSelectedStatus] = useState("all")
@@ -48,7 +49,7 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
   const [sortColumn, setSortColumn] = useState("created_at")
   const [sortDirection, setSortDirection] = useState("desc")
   const [groupByAsesor, setGroupByAsesor] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false) // Corregido: inicializado con false en lugar de isDeleting
+  const [isDeleting, setIsDeleting] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isSendingReminder, setIsSendingReminder] = useState(false)
   const supabase = createClientClient()
@@ -796,7 +797,7 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
     setCurrentPage(page)
   }
 
-  // Renderizar fila de datos
+  // Modificar la función renderTableRow para mostrar u ocultar botones según los permisos
   const renderTableRow = (peticion) => {
     const fechaAsignacion = peticion.fecha_asignacion ? new Date(peticion.fecha_asignacion) : null
     const fechaLimite = peticion.fecha_limite ? new Date(peticion.fecha_limite) : null
@@ -868,22 +869,29 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
                 <EyeIcon className="mr-2 h-4 w-4" />
                 <span>Ver</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleEditPeticion(peticion.id)}>
-                <EditIcon className="mr-2 h-4 w-4" />
-                <span>Editar</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => handlePanicButton(peticion)}
-                className="text-amber-600 focus:text-amber-600"
-                disabled={isSendingReminder}
-              >
-                <AlertTriangleIcon className="mr-2 h-4 w-4" />
-                <span>{isSendingReminder ? "Enviando..." : "Botón de Pánico"}</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openDeleteDialog(peticion)} className="text-red-600 focus:text-red-600">
-                <TrashIcon className="mr-2 h-4 w-4" />
-                <span>Eliminar</span>
-              </DropdownMenuItem>
+              {canManagePetitions && (
+                <>
+                  <DropdownMenuItem onClick={() => handleEditPeticion(peticion.id)}>
+                    <EditIcon className="mr-2 h-4 w-4" />
+                    <span>Editar</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handlePanicButton(peticion)}
+                    className="text-amber-600 focus:text-amber-600"
+                    disabled={isSendingReminder}
+                  >
+                    <AlertTriangleIcon className="mr-2 h-4 w-4" />
+                    <span>{isSendingReminder ? "Enviando..." : "Botón de Pánico"}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => openDeleteDialog(peticion)}
+                    className="text-red-600 focus:text-red-600"
+                  >
+                    <TrashIcon className="mr-2 h-4 w-4" />
+                    <span>Eliminar</span>
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </TableCell>
@@ -891,7 +899,7 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
     )
   }
 
-  // Diálogo de confirmación para eliminar
+  // Modificar la sección de botones para mostrar u ocultar el botón "Nueva Petición" según los permisos
   return (
     <>
       <div className="space-y-4 mb-8">
@@ -983,9 +991,11 @@ export function PeticionesTable({ peticiones, years, tagMap }) {
               {isRefreshing ? "Actualizando..." : "Actualizar datos"}
             </Button>
           </div>
-          <Button asChild>
-            <Link href="/dashboard/peticiones/nueva">Nueva Petición</Link>
-          </Button>
+          {canManagePetitions && (
+            <Button asChild>
+              <Link href="/dashboard/peticiones/nueva">Nueva Petición</Link>
+            </Button>
+          )}
         </div>
 
         {/* Tabla de peticiones */}

@@ -35,18 +35,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 // Recursos disponibles en el sistema
 const RESOURCES = [
-  { value: "expressions", label: "Expresiones" },
-  { value: "users", label: "Usuarios" },
-  { value: "groups", label: "Grupos" },
-  { value: "permissions", label: "Permisos" },
-  { value: "committees", label: "Referidos" },
-  { value: "classifications", label: "Clasificaciones" },
-  { value: "tags", label: "Etiquetas" },
+  { value: "petitions", label: "Peticiones" },
+  { value: "legislators", label: "Legisladores" },
   { value: "topics", label: "Temas" },
-  { value: "reports", label: "Reportes" },
+  { value: "classifications", label: "Clasificación" },
+  { value: "petition_status", label: "Estatus de Peticiones" },
+  { value: "advisors", label: "Asesores" },
   { value: "settings", label: "Configuración" },
-  { value: "profile", label: "Perfil" },
-  { value: "documents", label: "Documentos" }, // Add this line
+  { value: "documents", label: "Documentos" },
 ]
 
 // Acciones disponibles en el sistema
@@ -92,69 +88,24 @@ export function PermissionsManagement() {
   }, [activeTab])
 
   useEffect(() => {
-    const fetchPermissions = async () => {
-      setLoading(true)
-      try {
-        const { data, error } = await supabase.from("permissions").select("*").order("resource", { ascending: true })
-
-        if (error) throw error
-
-        // Check if "topic:manage" permission exists
-        const topicManagePermission = data.find(
-          (permission) => permission.resource === "topics" && permission.action === "manage",
-        )
-
-        // If it doesn't exist, create it
-        if (!topicManagePermission) {
-          const { error: insertError } = await supabase.from("permissions").insert([
-            {
-              name: "Gestionar Temas",
-              resource: "topics",
-              action: "manage",
-              description: "Permite crear, editar y eliminar temas",
-            },
-          ])
-
-          if (insertError) {
-            console.error("Error creating 'topic:manage' permission:", insertError)
-            toast({
-              variant: "destructive",
-              title: "Error al crear permiso",
-              description: "No se pudo crear el permiso 'topic:manage'",
-            })
-          } else {
-            toast({
-              title: "Permiso creado",
-              description: "El permiso 'topic:manage' ha sido creado exitosamente",
-            })
-          }
-        }
-
-        setPermissions(data)
-      } catch (error) {
-        console.error("Error fetching permissions:", error)
-        toast({
-          variant: "destructive",
-          title: "Error al cargar permisos",
-          description: error.message || "No se pudieron cargar los permisos",
-        })
-      } finally {
-        setLoading(false)
-      }
-    }
-
+    // Load permissions when component mounts
     fetchPermissions()
-  }, [supabase, toast])
+  }, [])
 
   // Función para obtener permisos
   const fetchPermissions = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase.from("permissions").select("*").order("resource", { ascending: true })
+      // Obtener permisos directamente filtrando por deparment_id = 2
+      const { data, error } = await supabase
+        .from("permissions")
+        .select("*")
+        .eq("deparment_id", 2)
+        .order("resource", { ascending: true })
 
       if (error) throw error
 
-      setPermissions(data)
+      setPermissions(data || [])
     } catch (error) {
       console.error("Error fetching permissions:", error)
       toast({
@@ -162,6 +113,7 @@ export function PermissionsManagement() {
         title: "Error al cargar permisos",
         description: error.message || "No se pudieron cargar los permisos",
       })
+      setPermissions([])
     } finally {
       setLoading(false)
     }
@@ -171,13 +123,13 @@ export function PermissionsManagement() {
   const fetchGroups = async () => {
     setLoading(true)
     try {
-      console.log("Obteniendo grupos del departamento 1...")
+      console.log("Obteniendo grupos del departamento 2...")
 
-      // Paso 1: Obtener los IDs de los grupos asociados al departamento 1
+      // Paso 1: Obtener los IDs de los grupos asociados al departamento 2
       const { data: departmentGroups, error: deptError } = await supabase
         .from("departments_group")
         .select("group_id")
-        .eq("department_id", 1)
+        .eq("department_id", 2)
 
       if (deptError) {
         console.error("Error obteniendo grupos del departamento:", deptError)
@@ -185,7 +137,7 @@ export function PermissionsManagement() {
       }
 
       if (!departmentGroups || departmentGroups.length === 0) {
-        console.log("No se encontraron grupos asociados al departamento 1")
+        console.log("No se encontraron grupos asociados al departamento 2")
         setGroups([])
         setLoading(false)
         return
@@ -193,7 +145,7 @@ export function PermissionsManagement() {
 
       // Extraer los IDs de los grupos
       const groupIds = departmentGroups.map((dg) => dg.group_id)
-      console.log(`Se encontraron ${groupIds.length} grupos asociados al departamento 1:`, groupIds)
+      console.log(`Se encontraron ${groupIds.length} grupos asociados al departamento 2:`, groupIds)
 
       // Paso 2: Obtener los detalles de los grupos
       const { data: groupsData, error: groupsError } = await supabase
@@ -207,14 +159,14 @@ export function PermissionsManagement() {
         throw groupsError
       }
 
-      console.log(`Se obtuvieron ${groupsData?.length || 0} grupos del departamento 1`)
+      console.log(`Se obtuvieron ${groupsData?.length || 0} grupos del departamento 2`)
       setGroups(groupsData || [])
     } catch (error) {
       console.error("Error fetching groups:", error)
       toast({
         variant: "destructive",
         title: "Error al cargar grupos",
-        description: error.message || "No se pudieron cargar los grupos del departamento 1",
+        description: error.message || "No se pudieron cargar los grupos del departamento 2",
       })
       setGroups([])
     } finally {
@@ -259,9 +211,11 @@ export function PermissionsManagement() {
       setGroupPermissions(formattedData)
 
       // Obtener permisos disponibles (que no están asignados al grupo)
+      // Solo permisos del departamento 2
       const { data: allPermissions, error: permissionsError } = await supabase
         .from("permissions")
         .select("*")
+        .eq("deparment_id", 2)
         .order("resource", { ascending: true })
 
       if (permissionsError) throw permissionsError
@@ -359,6 +313,7 @@ export function PermissionsManagement() {
           description: formData.description,
           resource: formData.resource,
           action: formData.action,
+          deparment_id: 2, // Asignar al departamento 2
         })
         .select()
 
@@ -412,6 +367,7 @@ export function PermissionsManagement() {
           resource: formData.resource,
           action: formData.action,
           updated_at: new Date(),
+          // No actualizamos deparment_id para mantener la asignación al departamento 2
         })
         .eq("id", selectedPermission.id)
 
@@ -788,7 +744,7 @@ export function PermissionsManagement() {
                       </div>
                     ) : groups.length === 0 ? (
                       <p className="text-center py-4 text-muted-foreground">
-                        No hay grupos asociados al departamento 1
+                        No hay grupos asociados al departamento 2
                       </p>
                     ) : (
                       groups.map((group) => (

@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { createClientClient } from "@/lib/supabase-client"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import { format, differenceInDays, differenceInHours, differenceInMinutes } from "date-fns"
@@ -13,7 +12,6 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
   ArrowLeft,
-  Edit,
   Clock,
   FileText,
   Calendar,
@@ -288,7 +286,7 @@ export default function VerPeticionPage({ params }) {
         <Button asChild>
           <Link href="/dashboard/peticiones">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Volver a Peticiones
+            Ver Peticiones
           </Link>
         </Button>
       </div>
@@ -351,46 +349,26 @@ export default function VerPeticionPage({ params }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/dashboard/peticiones">
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              Volver
-            </Link>
-          </Button>
-          <h1 className="text-2xl font-bold">Petición {peticion.num_peticion || `#${peticion.id.substring(0, 8)}`}</h1>
-          <Badge variant={peticion.archivado ? "outline" : "default"}>
-            {peticion.archivado ? "Archivado" : "Activo"}
-          </Badge>
-        </div>
-        <Button asChild>
-          <Link href={`/dashboard/peticiones/${id}/editar`}>
-            <Edit className="mr-2 h-4 w-4" />
-            Editar
-          </Link>
-        </Button>
-      </div>
-
       <Card>
-        <CardHeader>
-          <CardTitle className="flex flex-col">
-            <span>Información de la petición</span>
-            <div className="flex flex-col text-sm font-normal text-muted-foreground mt-1">
-              {tiempoRecepcionAsignacion && (
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  Tiempo entre recepción y asignación: {tiempoRecepcionAsignacion}
-                </span>
-              )}
-              {tiempoAsignacionDespacho && (
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  Tiempo entre asignación y despacho: {tiempoAsignacionDespacho}
-                </span>
-              )}
-            </div>
-          </CardTitle>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+            {(tiempoRecepcionAsignacion || tiempoAsignacionDespacho) && (
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-2 sm:mt-0 text-sm text-muted-foreground">
+                {tiempoRecepcionAsignacion && (
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5 text-amber-500" />
+                    <span>Recepción a asignación: {tiempoRecepcionAsignacion}</span>
+                  </div>
+                )}
+                {tiempoAsignacionDespacho && (
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5 text-green-500" />
+                    <span>Asignación a despacho: {tiempoAsignacionDespacho}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="informacion" className="w-full">

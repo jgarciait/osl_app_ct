@@ -9,6 +9,9 @@ import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
 import { AvailableNumbersDialog } from "@/components/available-numbers-dialog"
 
+// Importar el hook usePermissions
+import { usePermissions } from "@/hooks/use-permissions"
+
 export default function PeticionesPage() {
   const [peticiones, setPeticiones] = useState([])
   const [years, setYears] = useState([])
@@ -18,6 +21,11 @@ export default function PeticionesPage() {
   const { toast } = useToast()
   const router = useRouter()
   const [isAvailableNumbersDialogOpen, setIsAvailableNumbersDialogOpen] = useState(false)
+  // Añadir el hook de permisos
+  const { hasPermission } = usePermissions()
+
+  // Verificar si el usuario tiene permiso para gestionar peticiones
+  const canManagePetitions = hasPermission("petitions", "manage")
 
   // Añadir refs para las suscripciones
   const subscriptions = useRef([])
@@ -225,7 +233,7 @@ peticiones_asesores(
           Actualizar datos
         </Button>
       </div>
-      <PeticionesTable peticiones={peticiones} years={years} tagMap={tagMap} />
+      <PeticionesTable peticiones={peticiones} years={years} tagMap={tagMap} canManagePetitions={canManagePetitions} />
 
       {/* Diálogo para seleccionar números disponibles */}
       <AvailableNumbersDialog open={isAvailableNumbersDialogOpen} onOpenChange={setIsAvailableNumbersDialogOpen} />
