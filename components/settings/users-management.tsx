@@ -62,25 +62,25 @@ export function UsersManagement() {
   const fetchUsers = async () => {
     setLoading(true)
     try {
-      console.log("Obteniendo usuarios asociados al departamento 1")
+      console.log("Obteniendo usuarios asociados al departamento 2")
 
-      // 1. Primero obtenemos los IDs de los grupos asociados al departamento 1
+      // 1. Primero obtenemos los IDs de los grupos asociados al departamento 2
       const { data: departmentGroups, error: deptGroupsError } = await supabase
         .from("departments_group")
         .select("group_id")
-        .eq("department_id", 1)
+        .eq("department_id", 2)
 
       if (deptGroupsError) throw deptGroupsError
 
       if (!departmentGroups || departmentGroups.length === 0) {
-        console.log("No hay grupos asociados al departamento 1")
+        console.log("No hay grupos asociados al departamento 2")
         setUsers([])
         setLoading(false)
         return
       }
 
       const departmentGroupIds = departmentGroups.map((dg) => dg.group_id)
-      console.log(`Encontrados ${departmentGroupIds.length} grupos asociados al departamento 1:`, departmentGroupIds)
+      console.log(`Encontrados ${departmentGroupIds.length} grupos asociados al departamento 2:`, departmentGroupIds)
 
       // 2. Obtenemos los usuarios que pertenecen a esos grupos
       const { data: userGroupsData, error: userGroupsError } = await supabase
@@ -99,7 +99,7 @@ export function UsersManagement() {
 
       // Extraer IDs de usuarios únicos
       const userIds = [...new Set(userGroupsData.map((ug) => ug.user_id))]
-      console.log(`Encontrados ${userIds.length} usuarios asociados a grupos del departamento 1`)
+      console.log(`Encontrados ${userIds.length} usuarios asociados a grupos del departamento 2`)
 
       // 3. Obtenemos los perfiles de esos usuarios
       const { data: profiles, error: profilesError } = await supabase.from("profiles").select("*").in("id", userIds)
@@ -137,7 +137,7 @@ export function UsersManagement() {
         nombre: profile.nombre || "",
         apellido: profile.apellido || "",
         telefono: profile.telefono || "",
-        // Agregar solo los grupos del departamento 1
+        // Agregar solo los grupos del departamento 2
         groups: (userGroupsMap[profile.id] || []).map((groupId) => groupsMap[groupId]),
         groupIds: userGroupsMap[profile.id] || [],
       }))
@@ -159,16 +159,16 @@ export function UsersManagement() {
   // Función para obtener grupos
   const fetchGroups = async () => {
     try {
-      // Primero obtenemos los IDs de los grupos asociados al departamento 1
+      // Primero obtenemos los IDs de los grupos asociados al departamento 2
       const { data: departmentGroups, error: deptGroupsError } = await supabase
         .from("departments_group")
         .select("group_id")
-        .eq("department_id", 1)
+        .eq("department_id", 2)
 
       if (deptGroupsError) throw deptGroupsError
 
       if (!departmentGroups || departmentGroups.length === 0) {
-        console.log("No hay grupos asociados al departamento 1")
+        console.log("No hay grupos asociados al departamento 2")
         setGroups([])
         return
       }

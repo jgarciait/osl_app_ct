@@ -9,7 +9,6 @@ import { UsersManagement } from "@/components/settings/users-management"
 import { GroupsManagement } from "@/components/settings/groups-management"
 import { InvitationsManagement } from "@/components/settings/invitations-management"
 import { PermissionsPlaceholder } from "@/components/settings/permissions-placeholder"
-import { SequenceSettings } from "@/components/settings/sequence-settings"
 
 // Loading component with fixed height to prevent layout shifts
 const TabLoader = () => (
@@ -60,7 +59,7 @@ export function SettingsTabs() {
   // Render a stable container with fixed dimensions
   return (
     <div className="w-full">
-      <div className="grid w-full grid-cols-5 mb-6">
+      <div className="grid w-full grid-cols-4 mb-6">
         <button
           onClick={() => handleTabChange("invitations")}
           className={`py-2 px-4 text-center ${activeTab === "invitations" ? "bg-primary text-white" : "bg-muted"}`}
@@ -71,7 +70,7 @@ export function SettingsTabs() {
           onClick={() => handleTabChange("users")}
           className={`py-2 px-4 text-center ${activeTab === "users" ? "bg-primary text-white" : "bg-muted"}`}
         >
-          Usuarios (OPC)
+          Usuarios
         </button>
         <button
           onClick={() => handleTabChange("groups")}
@@ -84,12 +83,6 @@ export function SettingsTabs() {
           className={`py-2 px-4 text-center ${activeTab === "permissions" ? "bg-primary text-white" : "bg-muted"}`}
         >
           Permisos
-        </button>
-        <button
-          onClick={() => handleTabChange("sequence")}
-          className={`py-2 px-4 text-center ${activeTab === "sequence" ? "bg-primary text-white" : "bg-muted"}`}
-        >
-          Secuencia
         </button>
       </div>
 
@@ -117,12 +110,6 @@ export function SettingsTabs() {
           {activeTab === "permissions" && (
             <div className="min-h-[600px] w-full">
               <PermissionsPlaceholder />
-            </div>
-          )}
-
-          {activeTab === "sequence" && (
-            <div className="min-h-[600px] w-full">
-              <SequenceSettings />
             </div>
           )}
         </div>

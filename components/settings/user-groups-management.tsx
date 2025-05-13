@@ -24,6 +24,7 @@ export function UserGroupsManagement() {
 
   const [users, setUsers] = useState([])
   const [groups, setGroups] = useState([])
+  const [department2Groups, setDepartment2Groups] = useState([]) // Solo grupos del departamento 2
   const [userGroups, setUserGroups] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
@@ -31,11 +32,12 @@ export function UserGroupsManagement() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [selectedGroupId, setSelectedGroupId] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [debugInfo, setDebugInfo] = useState("") // Para depuración
 
   // Cargar usuarios y grupos al montar el componente
   useEffect(() => {
     fetchUsers()
-    fetchGroups()
+    fetchDepartment2Groups()
   }, [])
 
   // Función para obtener usuarios
@@ -59,19 +61,44 @@ export function UserGroupsManagement() {
     }
   }
 
-  // Función para obtener grupos
-  const fetchGroups = async () => {
+  // Función para obtener SOLO los grupos del departamento 2
+  const fetchDepartment2Groups = async () => {
     try {
-      const { data, error } = await supabase.from("groups").select("*").order("name", { ascending: true })
+      // Paso 1: Obtener los IDs de grupos del departamento 2
+      const { data: deptGroups, error: deptError } = await supabase
+        .from("departments_group")
+        .select("group_id")
+        .eq("department_id", 2)
 
-      if (error) throw error
+      if (deptError) {
+        throw deptError
+      }
 
-      setGroups(data)
+      if (!deptGroups || deptGroups.length === 0) {
+        setDepartment2Groups([])
+        return
+      }
+
+      // Extraer los IDs de grupos
+      const groupIds = deptGroups.map((item) => item.group_id)
+
+      // Paso 2: Obtener los detalles de esos grupos
+      const { data: groupsData, error: groupsError } = await supabase
+        .from("groups")
+        .select("*")
+        .in("id", groupIds)
+        .order("name", { ascending: true })
+
+      if (groupsError) {
+        throw groupsError
+      }
+
+      setDepartment2Groups(groupsData || [])
     } catch (error) {
-      console.error("Error fetching groups:", error)
+      console.error("Error fetching department 2 groups:", error)
       toast({
         variant: "destructive",
-        title: "Error al cargar grupos",
+        title: "Error al cargar grupos del departamento 2",
         description: error.message || "No se pudieron cargar los grupos",
       })
     }
@@ -98,8 +125,6 @@ export function UserGroupsManagement() {
 
       if (error) throw error
 
-      console.log("Raw user groups data:", data)
-
       // Formatear los datos para mostrar, preservando el ID original
       const formattedData = data.map((item) => ({
         id: item.id, // Mantener el ID original de user_groups
@@ -108,7 +133,6 @@ export function UserGroupsManagement() {
         description: item.groups.description,
       }))
 
-      console.log("Formatted user groups data:", formattedData)
       setUserGroups(formattedData)
     } catch (error) {
       console.error("Error fetching user groups:", error)
@@ -197,17 +221,12 @@ export function UserGroupsManagement() {
   const handleRemoveGroupFromUser = async (userGroupId) => {
     setIsSubmitting(true)
     try {
-      console.log("Attempting to remove user_group with ID:", userGroupId)
-
       // Eliminar asignación de grupo
       const { data, error } = await supabase.from("user_groups").delete().eq("id", userGroupId).select()
 
       if (error) {
-        console.error("Detailed error from Supabase:", error)
         throw new Error(error.message || "Failed to remove group from user")
       }
-
-      console.log("Delete operation result:", data)
 
       toast({
         title: "Grupo removido",
@@ -228,13 +247,13 @@ export function UserGroupsManagement() {
     }
   }
 
-  // Obtener grupos disponibles para asignar al usuario
+  // Obtener grupos disponibles para asignar al usuario (SOLO del departamento 2)
   const getAvailableGroups = () => {
     if (!selectedUser) return []
 
-    // Filtrar grupos que no están asignados al usuario
+    // Filtrar grupos que no están asignados al usuario Y que pertenecen al departamento 2
     const assignedGroupIds = userGroups.map((group) => group.group_id)
-    return groups.filter((group) => !assignedGroupIds.includes(group.id))
+    return department2Groups.filter((group) => !assignedGroupIds.includes(group.id))
   }
 
   return (
@@ -314,11 +333,17 @@ export function UserGroupsManagement() {
                             <SelectValue placeholder="Seleccione un grupo" />
                           </SelectTrigger>
                           <SelectContent>
-                            {getAvailableGroups().map((group) => (
-                              <SelectItem key={group.id} value={group.id}>
-                                {group.name}
-                              </SelectItem>
-                            ))}
+                            {getAvailableGroups().length === 0 ? (
+                              <div className="p-2 text-sm text-muted-foreground text-center">
+                                No hay grupos disponibles del departamento 2
+                              </div>
+                            ) : (
+                              getAvailableGroups().map((group) => (
+                                <SelectItem key={group.id} value={group.id}>
+                                  {group.name}
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
@@ -373,10 +398,7 @@ export function UserGroupsManagement() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => {
-                              console.log("Removing group with ID:", group.id)
-                              handleRemoveGroupFromUser(group.id)
-                            }}
+                            onClick={() => handleRemoveGroupFromUser(group.id)}
                             disabled={isSubmitting}
                           >
                             <Trash className="h-4 w-4 text-red-600" />

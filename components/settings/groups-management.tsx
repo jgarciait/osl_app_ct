@@ -58,13 +58,13 @@ export function GroupsManagement() {
   const fetchGroups = async () => {
     setLoading(true)
     try {
-      console.log("Fetching groups for department 1")
+      console.log("Fetching groups for department 2")
 
       // Enfoque directo: primero obtener los IDs de los grupos
       const { data: groupRelations, error: relationsError } = await supabase
         .from("departments_group")
         .select("group_id")
-        .eq("department_id", 1)
+        .eq("department_id", 2)
 
       if (relationsError) {
         console.error("Error fetching group relations:", relationsError)
@@ -74,7 +74,7 @@ export function GroupsManagement() {
       console.log("Group relations found:", groupRelations?.length || 0)
 
       if (!groupRelations || groupRelations.length === 0) {
-        console.log("No groups associated with department 1")
+        console.log("No groups associated with department 2")
         setGroups([])
         setLoading(false)
         return
@@ -171,9 +171,9 @@ export function GroupsManagement() {
 
       if (error) throw error
 
-      // Asociar el grupo con el departamento 1
+      // Asociar el grupo con el departamento 2
       const { error: relationError } = await supabase.from("departments_group").insert({
-        department_id: 1,
+        department_id: 2,
         group_id: data[0].id,
       })
 
@@ -330,7 +330,7 @@ export function GroupsManagement() {
         .from("departments_group")
         .delete()
         .eq("group_id", selectedGroup.id)
-        .eq("department_id", 1)
+        .eq("department_id", 2)
 
       if (relationDeleteError) throw relationDeleteError
 
@@ -483,7 +483,7 @@ export function GroupsManagement() {
                 ) : filteredGroups.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="h-24 text-center">
-                      No se encontraron grupos asociados al departamento 1
+                      No se encontraron grupos asociados al departamento 2
                     </td>
                   </tr>
                 ) : (
