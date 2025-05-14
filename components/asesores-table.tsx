@@ -20,11 +20,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { usePermissions } from "@/hooks/use-permissions"
 
 export function AsesoresTable({ asesores: initialAsesores = [] }) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
+  const { hasPermission } = usePermissions()
+  const canManageAdvisors = hasPermission("advisors","manage")
 
   const [asesores, setAsesores] = useState(initialAsesores)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -172,13 +175,13 @@ export function AsesoresTable({ asesores: initialAsesores = [] }) {
               <TableRow>
                 <TableHead>Color</TableHead>
                 <TableHead>Nombre</TableHead>
-                <TableHead className="w-[80px]"></TableHead>
+                {canManageAdvisors && <TableHead className="w-[80px]"></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredAsesores.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="h-24 text-center">
+                  <TableCell colSpan={canManageAdvisors ? 3 : 2} className="h-24 text-center">
                     No hay asesores registrados
                   </TableCell>
                 </TableRow>
@@ -193,26 +196,28 @@ export function AsesoresTable({ asesores: initialAsesores = [] }) {
                       />
                     </TableCell>
                     <TableCell className="font-medium">{asesor.name}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Acciones</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(asesor)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setAsesorToDelete(asesor)} className="text-red-600">
-                            <Trash className="mr-2 h-4 w-4" />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+                    {canManageAdvisors && (
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Acciones</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEdit(asesor)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setAsesorToDelete(asesor)} className="text-red-600">
+                              <Trash className="mr-2 h-4 w-4" />
+                              Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
