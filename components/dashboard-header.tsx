@@ -222,7 +222,7 @@ export function DashboardHeader() {
         {userProfile && (
           <div className="flex items-center gap-3">
             <div className="hidden md:flex flex-col items-end text-sm">
-              <span className="font-medium">{userProfile.full_name || "Usuario"}</span>
+              <span className="font-medium">{`${userProfile.nombre || ""} ${userProfile.apellido || ""}`}</span>
               <span className="text-muted-foreground text-xs">{userProfile.email}</span>
               {department2Group ? (
                 <span className="text-xs text-blue-600">{department2Group}</span>
@@ -232,7 +232,7 @@ export function DashboardHeader() {
             </div>
             <Avatar className="h-8 w-8">
               <AvatarFallback className="bg-[#1a365d] text-white">
-                {userProfile.full_name ? userProfile.full_name.charAt(0).toUpperCase() : <User className="h-4 w-4" />}
+                {userProfile.nombre ? userProfile.nombre.charAt(0).toUpperCase() : <User className="h-4 w-4" />}
               </AvatarFallback>
             </Avatar>
           </div>

@@ -11,12 +11,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
-import { useGroupPermissions } from "@/hooks/use-group-permissions"
+import { usePermissions } from "@/hooks/use-permissions"
 
 export function LegisladorForm() {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
+  const { hasPermission } = usePermissions()
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
@@ -26,9 +27,6 @@ export function LegisladorForm() {
     tel: "",
     ext: "",
   })
-
-  const { hasPermission } = useGroupPermissions()
-  const canManageLegisladores = hasPermission("committees", "manage") // Usando el mismo permiso que comités
 
   useEffect(() => {
     // Escuchar eventos de edición
@@ -127,7 +125,8 @@ export function LegisladorForm() {
     })
   }
 
-  if (!canManageLegisladores) {
+  // Si el usuario no tiene el permiso legislators:manage, ocultar el formulario
+  if (!hasPermission("legislators", "manage")) {
     return null
   }
 

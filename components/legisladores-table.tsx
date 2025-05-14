@@ -20,14 +20,87 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
 export function LegisladoresTable({ legisladores = [] }) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
-  const { hasPermission } = useGroupPermissions()
-  const canManageLegisladores = hasPermission("committees", "manage") // Usando el mismo permiso que comités
+
+  // Estado para controlar si el usuario puede gestionar legisladores
+  const [canManageLegisladores, setCanManageLegisladores] = useState(false)
+
+  // Verificar permisos directamente desde la base de datos
+  useEffect(() => {
+    async function checkPermission() {
+      try {
+        const { data: session } = await supabase.auth.getSession()
+        if (!session?.session) return
+
+        // Paso 1: Obtener los grupos del usuario
+        const { data: userGroups, error: userGroupsError } = await supabase
+          .from("user_groups")
+          .select("group_id")
+          .eq("user_id", session.session.user.id)
+
+        if (userGroupsError) {
+          console.error("Error obteniendo grupos del usuario:", userGroupsError)
+          return
+        }
+
+        if (!userGroups || userGroups.length === 0) {
+          console.log("El usuario no pertenece a ningún grupo")
+          setCanManageLegisladores(false)
+          return
+        }
+
+        // Extraer los IDs de los grupos
+        const groupIds = userGroups.map((group) => group.group_id)
+
+        // Paso 2: Obtener los permisos asociados a esos grupos
+        const { data: groupPermissions, error: permissionsError } = await supabase
+          .from("group_permissions")
+          .select("permission_id")
+          .in("group_id", groupIds)
+
+        if (permissionsError) {
+          console.error("Error obteniendo permisos de grupos:", permissionsError)
+          return
+        }
+
+        if (!groupPermissions || groupPermissions.length === 0) {
+          console.log("Los grupos del usuario no tienen permisos asignados")
+          setCanManageLegisladores(false)
+          return
+        }
+
+        // Extraer los IDs de los permisos
+        const permissionIds = groupPermissions.map((perm) => perm.permission_id)
+
+        // Paso 3: Verificar si alguno de esos permisos es legislators:manage
+        const { data: permissions, error: checkError } = await supabase
+          .from("permissions")
+          .select("*")
+          .in("id", permissionIds)
+          .eq("resource", "legislators")
+          .eq("action", "manage")
+          .limit(1)
+
+        if (checkError) {
+          console.error("Error verificando permisos específicos:", checkError)
+          return
+        }
+
+        // Si hay datos, el usuario tiene el permiso
+        const hasPermission = permissions && permissions.length > 0
+        setCanManageLegisladores(hasPermission)
+        console.log("Permiso legislators:manage:", hasPermission ? "Concedido" : "Denegado")
+      } catch (error) {
+        console.error("Error al verificar permisos:", error)
+      }
+    }
+
+    checkPermission()
+  }, [supabase])
 
   const [isDeleting, setIsDeleting] = useState(false)
   const [legisladorToDelete, setLegisladorToDelete] = useState(null)
@@ -148,7 +221,7 @@ export function LegisladoresTable({ legisladores = [] }) {
             <TableBody>
               {filteredLegisladores.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={2} className="h-24 text-center">
+                  <TableCell colSpan={canManageLegisladores ? 2 : 1} className="h-24 text-center">
                     No hay legisladores registrados
                   </TableCell>
                 </TableRow>

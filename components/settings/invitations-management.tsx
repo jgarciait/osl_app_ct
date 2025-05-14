@@ -48,12 +48,10 @@ export function InvitationsManagement() {
     email: "",
     nombre: "",
     apellido: "",
-    groups: [],
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   // Añadir esta línea al inicio del componente para obtener la sesión del usuario
   const [currentUser, setCurrentUser] = useState(null)
-  const [availableGroups, setAvailableGroups] = useState([])
 
   // Nuevos estados para el diálogo de código de invitación
   const [isCodeDialogOpen, setIsCodeDialogOpen] = useState(false)
@@ -81,27 +79,6 @@ export function InvitationsManagement() {
 
     getCurrentUser()
   }, [supabase.auth])
-
-  // Cargar grupos disponibles
-  useEffect(() => {
-    const fetchGroups = async () => {
-      try {
-        const { data, error } = await supabase.from("groups").select("id, name, description").order("name")
-
-        if (error) throw error
-        setAvailableGroups(data || [])
-      } catch (error) {
-        console.error("Error fetching groups:", error)
-        toast({
-          variant: "destructive",
-          title: "Error al cargar grupos",
-          description: "No se pudieron cargar los grupos disponibles",
-        })
-      }
-    }
-
-    fetchGroups()
-  }, [supabase, toast])
 
   // Función para obtener invitaciones
   const fetchInvitations = async () => {
@@ -212,7 +189,7 @@ export function InvitationsManagement() {
       // Generar código de invitación
       const invitationCode = generateInvitationCode()
 
-      // Crear invitación en la base de datos - omitiendo el campo groups
+      // Crear invitación en la base de datos
       const { data: invitation, error: invitationError } = await supabase
         .from("invitations")
         .insert({
@@ -223,25 +200,12 @@ export function InvitationsManagement() {
           created_by: currentUser.id,
           expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           status: "pending",
+          department_id: 2,
         })
         .select()
         .single()
 
       if (invitationError) throw invitationError
-
-      // Si hay grupos seleccionados, mostrar un mensaje informativo
-      /*
-      if (formData.groups && formData.groups.length > 0) {
-        console.log("Grupos seleccionados:", formData.groups)
-        // Aquí podríamos guardar esta información en otra tabla o mostrar un mensaje
-        toast({
-          title: "Información sobre grupos",
-          description:
-            "Los grupos seleccionados no se guardarán hasta que se actualice la estructura de la base de datos.",
-          duration: 5000,
-        })
-      }
-      */
 
       toast({
         title: "Invitación creada",
@@ -265,7 +229,6 @@ export function InvitationsManagement() {
         email: "",
         nombre: "",
         apellido: "",
-        groups: [],
       })
     } catch (error) {
       console.error("Error creating invitation:", error)
@@ -383,11 +346,6 @@ export function InvitationsManagement() {
     }
   }
 
-  // Función para renderizar los grupos (modificada para manejar el caso donde no hay grupos)
-  const renderGroups = (invitation) => {
-    return <span className="text-gray-500">Sin grupos</span>
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between gap-4">
@@ -456,27 +414,6 @@ export function InvitationsManagement() {
                     className="col-span-3"
                   />
                 </div>
-                {/* Sección de grupos oculta
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="groups" className="text-right">
-                    Grupos
-                  </Label>
-                  <div className="col-span-3">
-                    <MultiSelect
-                      options={availableGroups.map((group) => ({
-                        label: group.name,
-                        value: group.id,
-                      }))}
-                      selected={formData.groups}
-                      onChange={(selected) => setFormData((prev) => ({ ...prev, groups: selected }))}
-                      placeholder="Seleccione grupos"
-                    />
-                    <p className="text-xs text-amber-600 mt-1">
-                      Nota: Los grupos seleccionados no se guardarán hasta que se actualice la estructura de la base de datos.
-                    </p>
-                  </div>
-                </div>
-                */}
               </div>
               <DialogFooter>
                 <Button
@@ -512,7 +449,6 @@ export function InvitationsManagement() {
                 <tr>
                   <th className="text-left p-3 border-b">Email</th>
                   <th className="text-left p-3 border-b">Nombre</th>
-                  <th className="text-left p-3 border-b">Grupos</th>
                   <th className="text-left p-3 border-b">Estado</th>
                   <th className="text-left p-3 border-b w-[80px]"></th>
                 </tr>
@@ -520,13 +456,13 @@ export function InvitationsManagement() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="h-24 text-center">
+                    <td colSpan={4} className="h-24 text-center">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                     </td>
                   </tr>
                 ) : filteredInvitations.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="h-24 text-center">
+                    <td colSpan={4} className="h-24 text-center">
                       <div className="flex flex-col items-center justify-center space-y-2">
                         <p>No se encontraron invitaciones</p>
                         <p className="text-sm text-muted-foreground">
@@ -555,7 +491,6 @@ export function InvitationsManagement() {
                     <tr key={invitation.id} className="border-b hover:bg-gray-50">
                       <td className="p-3">{invitation.email}</td>
                       <td className="p-3">{`${invitation.nombre} ${invitation.apellido || ""}`}</td>
-                      <td className="p-3">{renderGroups(invitation)}</td>
                       <td className="p-3">{invitation.status}</td>
                       <td className="p-3">
                         <DropdownMenu>

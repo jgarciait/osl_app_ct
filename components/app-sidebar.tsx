@@ -11,6 +11,7 @@ import Image from "next/image"
 import { createContext, useContext, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { PermissionGuard } from "@/components/permission-guard"
+import { usePermissions } from "@/hooks/use-permissions"
 
 // Crear un contexto para el sidebar
 const SidebarContext = createContext<{
@@ -42,6 +43,7 @@ export function AppSidebar() {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const { expanded } = useSidebarContext()
   const [userRole, setUserRole] = useState<string | null>(null)
+  const { hasPermission } = usePermissions()
 
   useEffect(() => {
     const fetchUserRole = async () => {
@@ -113,8 +115,8 @@ export function AppSidebar() {
     }
   }
 
-  // Actualizar el array navItems para incluir el enlace a clasificaciones y bugs
-  const navItems = [
+  // Filtrar los elementos de navegación basados en permisos
+  const filteredNavItems = [
     {
       title: "Dashboard",
       icon: Home,
@@ -122,64 +124,98 @@ export function AppSidebar() {
       isActive: pathname === "/dashboard",
       // El Dashboard siempre es visible para usuarios autenticados
     },
-    {
-      title: "Peticiones",
-      icon: FileText,
-      href: "/dashboard/peticiones",
-      isActive: pathname === "/dashboard/peticiones" || pathname.startsWith("/dashboard/peticiones/"),
-      permission: { resource: "expressions", action: "view" },
-    },
-    {
-      title: "Legisladores",
-      icon: Landmark,
-      href: "/dashboard/legisladores",
-      isActive: pathname === "/dashboard/legisladores",
-      permission: { resource: "committees", action: "view" },
-    },
-    {
-      title: "Temas",
-      icon: BookOpen,
-      href: "/dashboard/temas",
-      isActive: pathname === "/dashboard/temas",
-      permission: { resource: "topics", action: "view" },
-    },
-    {
-      title: "Clasificación",
-      icon: Folder,
-      href: "/dashboard/clasificaciones",
-      isActive: pathname === "/dashboard/clasificaciones",
-      permission: { resource: "classifications", action: "view" },
-    },
-    {
-      title: "Estatus de Peticiones",
-      href: "/dashboard/estatus-peticiones",
-      icon: TagIcon, // O cualquier otro icono apropiado
-      permission: { resource: "status_requests", action: "view" }, // O el permiso que corresponda
-      isActive: pathname === "/dashboard/estatus-peticiones",
-    },
-    {
-      title: "Asesores",
-      icon: Users,
-      href: "/dashboard/asesores",
-      isActive: pathname === "/dashboard/asesores" || pathname.startsWith("/dashboard/asesores/"),
-      permission: { resource: "advisors", action: "view" },
-      children: [
-        {
-          title: "Gestión de Asesores",
-          href: "/dashboard/asesores",
-          isActive: pathname === "/dashboard/asesores",
-        },
-        {
-          title: "Configuración de Colores",
-          href: "/dashboard/asesores/colores",
-          isActive: pathname === "/dashboard/asesores/colores",
-        },
-      ],
-    },
-    // Se ha eliminado la sección de Etiquetas
-    // Se ha eliminado la sección de Reportes
-    // Se ha eliminado la sección de Bugs
-    // Se ha eliminado la sección de Updates
+
+    // Peticiones - Solo visible si tiene el permiso petitions:view
+    ...(hasPermission("petitions", "view")
+      ? [
+          {
+            title: "Peticiones",
+            icon: FileText,
+            href: "/dashboard/peticiones",
+            isActive: pathname === "/dashboard/peticiones" || pathname.startsWith("/dashboard/peticiones/"),
+            permission: { resource: "expressions", action: "view" },
+          },
+        ]
+      : []),
+
+    // Legisladores - Solo visible si tiene el permiso legislators:view
+    ...(hasPermission("legislators", "view")
+      ? [
+          {
+            title: "Legisladores",
+            icon: Landmark,
+            href: "/dashboard/legisladores",
+            isActive: pathname === "/dashboard/legisladores",
+            permission: { resource: "committees", action: "view" },
+          },
+        ]
+      : []),
+
+    // Temas - Solo visible si tiene el permiso topics:view
+    ...(hasPermission("topics", "view")
+      ? [
+          {
+            title: "Temas",
+            icon: BookOpen,
+            href: "/dashboard/temas",
+            isActive: pathname === "/dashboard/temas",
+            permission: { resource: "topics", action: "view" },
+          },
+        ]
+      : []),
+
+    // Clasificación - Solo visible si tiene el permiso classifications:view
+    ...(hasPermission("classifications", "view")
+      ? [
+          {
+            title: "Clasificación",
+            icon: Folder,
+            href: "/dashboard/clasificaciones",
+            isActive: pathname === "/dashboard/clasificaciones",
+            permission: { resource: "classifications", action: "view" },
+          },
+        ]
+      : []),
+
+    // Estatus de Peticiones - Solo visible si tiene el permiso petition_status:view
+    ...(hasPermission("petition_status", "view")
+      ? [
+          {
+            title: "Estatus de Peticiones",
+            href: "/dashboard/estatus-peticiones",
+            icon: TagIcon,
+            permission: { resource: "status_requests", action: "view" },
+            isActive: pathname === "/dashboard/estatus-peticiones",
+          },
+        ]
+      : []),
+
+    // Asesores - Solo visible si tiene el permiso advisors:view
+    ...(hasPermission("advisors", "view")
+      ? [
+          {
+            title: "Asesores",
+            icon: Users,
+            href: "/dashboard/asesores",
+            isActive: pathname === "/dashboard/asesores" || pathname.startsWith("/dashboard/asesores/"),
+            permission: { resource: "advisors", action: "view" },
+            children: [
+              {
+                title: "Gestión de Asesores",
+                href: "/dashboard/asesores",
+                isActive: pathname === "/dashboard/asesores",
+              },
+              {
+                title: "Configuración de Colores",
+                href: "/dashboard/asesores/colores",
+                isActive: pathname === "/dashboard/asesores/colores",
+              },
+            ],
+          },
+        ]
+      : []),
+
+    // Configuración - Siempre visible para usuarios autenticados
     {
       title: "Configuración",
       icon: Settings,
@@ -187,6 +223,8 @@ export function AppSidebar() {
       isActive: pathname === "/dashboard/settings",
       permission: { resource: "settings", action: "view" },
     },
+
+    // Perfil - Siempre visible para usuarios autenticados
     {
       title: "Perfil",
       icon: UserCog,
@@ -194,14 +232,19 @@ export function AppSidebar() {
       isActive: pathname === "/dashboard/perfil",
       // El perfil siempre es visible para usuarios autenticados
     },
-    {
-      title: "Documentos",
-      icon: Folder,
-      href: "/dashboard/documentos",
-      isActive: pathname === "/dashboard/documentos",
-      permission: { resource: "documents", action: "view" },
-    },
-    // Se ha eliminado la sección de Auditoría
+
+    // Documentos - Solo visible si tiene el permiso documents:view
+    ...(hasPermission("documents", "view")
+      ? [
+          {
+            title: "Documentos",
+            icon: Folder,
+            href: "/dashboard/documentos",
+            isActive: pathname === "/dashboard/documentos",
+            permission: { resource: "documents", action: "view" },
+          },
+        ]
+      : []),
   ]
 
   // En dispositivos móviles, ocultar el sidebar si no está expandido
@@ -229,7 +272,7 @@ export function AppSidebar() {
 
       <div className="flex-1 overflow-y-auto py-2">
         <nav className="space-y-1 px-2">
-          {navItems.map((item) =>
+          {filteredNavItems.map((item) =>
             item.permission ? (
               <PermissionGuard
                 key={item.href}
