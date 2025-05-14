@@ -152,7 +152,7 @@ export function AppSidebar() {
       : []),
 
     // Temas - Solo visible si tiene el permiso topics:view
-    ...(hasPermission("topics", "view")
+    ...(hasPermission("topics_pcl", "view")
       ? [
           {
             title: "Temas",
@@ -234,7 +234,7 @@ export function AppSidebar() {
     },
 
     // Documentos - Solo visible si tiene el permiso documents:view
-    ...(hasPermission("documents", "view")
+    ...(hasPermission("documents_pcl", "view")
       ? [
           {
             title: "Documentos",
