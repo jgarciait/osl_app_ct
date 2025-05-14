@@ -20,14 +20,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useGroupPermissions } from "@/hooks/use-group-permissions"
+import { usePermissions } from "@/hooks/use-permissions"
 
 export function ClasificacionesTable() {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
-  const { hasPermission } = useGroupPermissions()
-  const canManageClasificaciones = hasPermission("classifications", "manage")
+  const { hasPermission } = usePermissions()
+  const canManageClassifications = hasPermission("classifications_pcl", "manage")
 
   const [clasificaciones, setClasificaciones] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -215,7 +215,7 @@ export function ClasificacionesTable() {
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Abreviatura</TableHead>
-                {canManageClasificaciones && <TableHead className="w-[80px]">Acciones</TableHead>}
+                {canManageClassifications && <TableHead className="w-[80px]">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -239,7 +239,7 @@ export function ClasificacionesTable() {
                   <TableRow key={clasificacion.id}>
                     <TableCell className="font-medium">{clasificacion.nombre}</TableCell>
                     <TableCell>{clasificacion.abreviatura || "-"}</TableCell>
-                    {canManageClasificaciones && (
+                    {canManageClassifications && (
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
