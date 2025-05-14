@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { Trash2, Plus, Edit } from "lucide-react"
+import { usePermissions } from "@/hooks/use-permissions"
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,8 @@ export default function EstatusPeticionesForm() {
 
   const supabase = createClientClient()
   const { toast } = useToast()
+  const { hasPermission } = usePermissions()
+  const canManageEstatusPeticiones = hasPermission("petition_status", "manage")
 
   useEffect(() => {
     fetchEstatus()
@@ -234,9 +237,11 @@ export default function EstatusPeticionesForm() {
     <div className="container mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Gestión de Estatus de Peticiones</h1>
-        <Button onClick={openAddDialog}>
-          <Plus className="mr-2 h-4 w-4" /> Nuevo Estatus
-        </Button>
+        {canManageEstatusPeticiones && (
+          <Button onClick={openAddDialog}>
+            <Plus className="mr-2 h-4 w-4" /> Nuevo Estatus
+          </Button>
+        )}
       </div>
 
       {loading ? (
@@ -275,12 +280,16 @@ export default function EstatusPeticionesForm() {
                 </div>
               </CardContent>
               <CardFooter className="flex justify-end space-x-2">
-                <Button variant="outline" size="sm" onClick={() => openEditDialog(item)}>
-                  <Edit className="h-4 w-4 mr-1" /> Editar
-                </Button>
-                <Button variant="destructive" size="sm" onClick={() => openDeleteDialog(item)}>
-                  <Trash2 className="h-4 w-4 mr-1" /> Eliminar
-                </Button>
+                {canManageEstatusPeticiones && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => openEditDialog(item)}>
+                      <Edit className="h-4 w-4 mr-1" /> Editar
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={() => openDeleteDialog(item)}>
+                      <Trash2 className="h-4 w-4 mr-1" /> Eliminar
+                    </Button>
+                  </>
+                )}
               </CardFooter>
             </Card>
           ))}

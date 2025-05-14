@@ -7,8 +7,11 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardFooter, CardTitle } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
+
+// Importar el hook de permisos
+import { usePermissions } from "@/hooks/use-permissions"
 
 export function TemaForm() {
   const router = useRouter()
@@ -19,15 +22,24 @@ export function TemaForm() {
   const [formData, setFormData] = useState({
     id: null,
     nombre: "",
+    descripcion: "",
   })
+
+  const [tema, setTema] = useState(null)
+
+  // Añadir la verificación de permisos después de las otras constantes
+  const { hasPermission } = usePermissions()
+  const canManageTemas = hasPermission("topics_pcl", "manage")
 
   useEffect(() => {
     // Listen for edit events
     const handleEditTema = (event) => {
       const tema = event.detail
+      setTema(tema)
       setFormData({
         id: tema.id,
         nombre: tema.nombre,
+        descripcion: tema.descripcion || "",
       })
     }
 
@@ -54,6 +66,7 @@ export function TemaForm() {
           .from("temasPeticiones")
           .update({
             nombre: formData.nombre,
+            descripcion: formData.descripcion,
           })
           .eq("id", formData.id)
 
@@ -67,6 +80,7 @@ export function TemaForm() {
         // Create new tema
         const { error } = await supabase.from("temasPeticiones").insert({
           nombre: formData.nombre,
+          descripcion: formData.descripcion,
         })
 
         if (error) throw error
@@ -81,6 +95,7 @@ export function TemaForm() {
       setFormData({
         id: null,
         nombre: "",
+        descripcion: "",
       })
 
       router.refresh()
@@ -100,47 +115,61 @@ export function TemaForm() {
     setFormData({
       id: null,
       nombre: "",
+      descripcion: "",
     })
   }
 
+  // Modificar el return para incluir el renderizado condicional
   return (
-    <Card>
-      <CardHeader>
-        <CardDescription>
-          {formData.id ? "Actualice la información del tema" : "Complete el formulario para añadir un nuevo tema."}
-        </CardDescription>
-      </CardHeader>
-      <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="nombre">Nombre</Label>
-            <Input id="nombre" name="nombre" value={formData.nombre} onChange={handleInputChange} required />
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          {formData.id && (
-            <Button type="button" variant="outline" onClick={handleCancel} disabled={isSubmitting}>
-              Cancelar
-            </Button>
-          )}
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className={`${formData.id ? "" : "w-full"} bg-[#1a365d] hover:bg-[#15294d]`}
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {formData.id ? "Actualizando..." : "Guardando..."}
-              </>
-            ) : formData.id ? (
-              "Actualizar"
-            ) : (
-              "Guardar"
-            )}
-          </Button>
-        </CardFooter>
-      </form>
-    </Card>
+    <>
+      {canManageTemas && (
+        <Card className="w-full max-w-md mx-auto">
+          <CardHeader>
+            <CardTitle>{tema ? "Editar Tema" : "Nuevo Tema"}</CardTitle>
+            <CardDescription>
+              {tema ? "Actualice la información del tema" : "Ingrese la información del nuevo tema"}
+            </CardDescription>
+          </CardHeader>
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="nombre">Nombre</Label>
+                <Input
+                  id="nombre"
+                  name="nombre"
+                  value={formData.nombre}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="Nombre del tema"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="descripcion">Descripción</Label>
+                <Input
+                  id="descripcion"
+                  name="descripcion"
+                  value={formData.descripcion}
+                  onChange={handleInputChange}
+                  placeholder="Descripción del tema (opcional)"
+                />
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button type="submit" disabled={isSubmitting} className="w-full">
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {tema ? "Actualizando..." : "Creando..."}
+                  </>
+                ) : (
+                  "Guardar"
+                )}
+              </Button>
+            </CardFooter>
+          </form>
+        </Card>
+      )}
+    </>
   )
 }

@@ -20,14 +20,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useGroupPermissions } from "@/hooks/use-group-permissions"
+// Cambiar la importación de useGroupPermissions a usePermissions
+import { usePermissions } from "@/hooks/use-permissions"
 
 export function TemasTable() {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
-  const { hasPermission } = useGroupPermissions()
-  const canManageTemas = hasPermission("topics", "manage")
+  // Cambiar la verificación de permisos
+  const { hasPermission } = usePermissions()
+  const canManageTemas = hasPermission("topics_pcl", "manage")
 
   const [temas, setTemas] = useState([])
   const [isLoading, setIsLoading] = useState(true)
