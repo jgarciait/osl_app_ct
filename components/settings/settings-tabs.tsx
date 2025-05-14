@@ -9,6 +9,7 @@ import { UsersManagement } from "@/components/settings/users-management"
 import { GroupsManagement } from "@/components/settings/groups-management"
 import { InvitationsManagement } from "@/components/settings/invitations-management"
 import { PermissionsPlaceholder } from "@/components/settings/permissions-placeholder"
+import { NotificationsManagement } from "@/components/settings/notifications-management"
 
 // Loading component with fixed height to prevent layout shifts
 const TabLoader = () => (
@@ -59,7 +60,7 @@ export function SettingsTabs() {
   // Render a stable container with fixed dimensions
   return (
     <div className="w-full">
-      <div className="grid w-full grid-cols-4 mb-6">
+      <div className="grid w-full grid-cols-5 mb-6">
         <button
           onClick={() => handleTabChange("invitations")}
           className={`py-2 px-4 text-center ${activeTab === "invitations" ? "bg-primary text-white" : "bg-muted"}`}
@@ -83,6 +84,12 @@ export function SettingsTabs() {
           className={`py-2 px-4 text-center ${activeTab === "permissions" ? "bg-primary text-white" : "bg-muted"}`}
         >
           Permisos
+        </button>
+        <button
+          onClick={() => handleTabChange("notifications")}
+          className={`py-2 px-4 text-center ${activeTab === "notifications" ? "bg-primary text-white" : "bg-muted"}`}
+        >
+          Notificaciones
         </button>
       </div>
 
@@ -110,6 +117,12 @@ export function SettingsTabs() {
           {activeTab === "permissions" && (
             <div className="min-h-[600px] w-full">
               <PermissionsPlaceholder />
+            </div>
+          )}
+
+          {activeTab === "notifications" && (
+            <div className="min-h-[600px] w-full">
+              <NotificationsManagement />
             </div>
           )}
         </div>
