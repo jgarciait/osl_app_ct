@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Edit, MoreHorizontal, Trash, Search, ChevronLeft, ChevronRight } from "lucide-react"
+import { Edit, MoreHorizontal, Trash, Search, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,18 +22,89 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
-export function TemasTable({ temas = [] }) {
+export function TemasTable() {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
   const { hasPermission } = useGroupPermissions()
   const canManageTemas = hasPermission("topics", "manage")
 
+  const [temas, setTemas] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
   const [temaToDelete, setTemaToDelete] = useState(null)
   const [searchValue, setSearchValue] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
+
+  // Cargar temas
+  useEffect(() => {
+    const fetchTemas = async () => {
+      setIsLoading(true)
+      try {
+        const { data, error } = await supabase.from("temasPeticiones").select("*").order("nombre", { ascending: true })
+
+        if (error) throw error
+
+        setTemas(data || [])
+      } catch (error) {
+        console.error("Error fetching temas:", error)
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudieron cargar los temas",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchTemas()
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel("temasPeticiones-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "temasPeticiones",
+        },
+        (payload) => {
+          const { eventType, new: newRecord, old: oldRecord } = payload
+
+          if (eventType === "INSERT") {
+            setTemas((prev) => [...prev, newRecord].sort((a, b) => a.nombre.localeCompare(b.nombre)))
+            toast({
+              title: "Nuevo tema",
+              description: `El tema "${newRecord.nombre}" ha sido añadido`,
+            })
+          } else if (eventType === "UPDATE") {
+            setTemas((prev) =>
+              prev
+                .map((item) => (item.id === newRecord.id ? newRecord : item))
+                .sort((a, b) => a.nombre.localeCompare(b.nombre)),
+            )
+            toast({
+              title: "Tema actualizado",
+              description: `El tema "${newRecord.nombre}" ha sido actualizado`,
+            })
+          } else if (eventType === "DELETE") {
+            setTemas((prev) => prev.filter((item) => item.id !== oldRecord.id))
+            toast({
+              title: "Tema eliminado",
+              description: `El tema ha sido eliminado`,
+            })
+          }
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
 
   // Filtrar temas basados en la búsqueda
   const filteredTemas = temas.filter((tema) => tema.nombre.toLowerCase().includes(searchValue.toLowerCase()))
@@ -136,11 +207,20 @@ export function TemasTable({ temas = [] }) {
             <TableHeader>
               <TableRow>
                 <TableHead>Nombre</TableHead>
-                {canManageTemas ? <TableHead className="w-[80px]"></TableHead> : null}
+                {canManageTemas && <TableHead className="w-[80px]">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTemas.length === 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={2} className="h-24 text-center">
+                    <div className="flex justify-center items-center">
+                      <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                      Cargando temas...
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : filteredTemas.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={2} className="h-24 text-center">
                     No hay temas registrados
@@ -150,7 +230,7 @@ export function TemasTable({ temas = [] }) {
                 paginatedTemas.map((tema) => (
                   <TableRow key={tema.id}>
                     <TableCell className="font-medium">{tema.nombre}</TableCell>
-                    {canManageTemas ? (
+                    {canManageTemas && (
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -171,7 +251,7 @@ export function TemasTable({ temas = [] }) {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
-                    ) : null}
+                    )}
                   </TableRow>
                 ))
               )}

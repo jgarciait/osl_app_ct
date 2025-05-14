@@ -1,34 +1,22 @@
-import { createServerClient } from "@/lib/supabase-server"
+"use client"
 import { TemasTable } from "@/components/temas-table"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
+import { TemaForm } from "@/components/tema-form"
+import { useToast } from "@/components/ui/use-toast"
 
-export const dynamic = "force-dynamic"
-
-export default async function TemasPage() {
-  const supabase = createServerClient()
-
-  // Obtener todos los temas
-  const { data: temas, error } = await supabase.from("temas").select("*").order("nombre", { ascending: true })
-
-  if (error) {
-    console.error("Error al obtener temas:", error)
-  }
+export default function TemasPage() {
+  const { toast } = useToast()
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Temas</h1>
-        <Link href="/dashboard/temas/nuevo">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo Tema
-          </Button>
-        </Link>
+    <div className="w-full py-6 px-4">
+      <div className="space-y-6">
+        <div>
+          <p className="text-muted-foreground">Administre los temas para las peticiones</p>
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <TemaForm />
+          <TemasTable />
+        </div>
       </div>
-
-      <TemasTable temas={temas || []} />
     </div>
   )
 }
