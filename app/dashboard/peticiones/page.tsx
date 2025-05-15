@@ -1,7 +1,5 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-
 import { useState, useEffect, useRef } from "react"
 import { createClientClient, cachedQuery } from "@/lib/supabase-client"
 import { PeticionesTable } from "@/components/peticiones-table"
@@ -228,11 +226,6 @@ peticiones_asesores(
 
   return (
     <div className="w-full">
-      <div className="flex justify-between items-center mb-6">
-        <Button onClick={handleRefresh} variant="outline" className="ml-auto">
-          Actualizar datos
-        </Button>
-      </div>
       <PeticionesTable peticiones={peticiones} years={years} tagMap={tagMap} canManagePetitions={canManagePetitions} />
 
       {/* Diálogo para seleccionar números disponibles */}

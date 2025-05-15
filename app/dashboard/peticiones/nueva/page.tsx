@@ -62,6 +62,7 @@ export default function NuevaPeticionPage() {
 
     // Tab 2: Trámites
     fecha_asignacion: "",
+    fecha_limite: format(new Date(new Date().setDate(new Date().getDate() + 7)), "yyyy-MM-dd"), // Default to 7 days from now
     asesor_id: "", // Cambiado de asesor a asesor_id
     peticionEstatus_id: "", // Usamos peticionEstatus_id en lugar de status
     comentarios: "",
@@ -323,6 +324,7 @@ export default function NuevaPeticionPage() {
         year: yearFull,
         mes: fechaRecibido.getMonth() + 1,
         fecha_asignacion: formData.fecha_asignacion || null,
+        fecha_limite: formData.fecha_limite || null, // Add this line
         // Eliminamos el campo status que no existe en la tabla
         peticionEstatus_id: formData.peticionEstatus_id || null, // Usamos peticionEstatus_id en su lugar
         comentarios: formData.comentarios,
@@ -419,14 +421,10 @@ export default function NuevaPeticionPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <h1 className="text-2xl font-bold">Nueva Petición</h1>
-      </div>
-
       <form onSubmit={(e) => e.preventDefault()}>
         <Card>
           <CardHeader>
-            <CardTitle>Crear nueva petición</CardTitle>
+            <CardTitle></CardTitle>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="informacion" className="w-full">
@@ -611,6 +609,17 @@ export default function NuevaPeticionPage() {
                     name="fecha_asignacion"
                     type="date"
                     value={formData.fecha_asignacion}
+                    onChange={handleInputChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="fecha_limite">Fecha Límite</Label>
+                  <Input
+                    id="fecha_limite"
+                    name="fecha_limite"
+                    type="date"
+                    value={formData.fecha_limite}
                     onChange={handleInputChange}
                   />
                 </div>

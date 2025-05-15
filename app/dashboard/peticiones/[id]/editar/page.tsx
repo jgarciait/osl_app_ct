@@ -70,6 +70,7 @@ export default function EditarPeticionPage({ params }) {
     archivado: false,
     peticionEstatus_id: "",
     fecha_despacho: "",
+    fecha_limite: "",
   })
 
   // Cerca del inicio del componente, después de obtener el ID de los parámetros
@@ -154,6 +155,8 @@ export default function EditarPeticionPage({ params }) {
           ? format(new Date(peticion.fecha_despacho), "yyyy-MM-dd")
           : ""
 
+        const formattedFechaLimite = peticion.fecha_limite ? format(new Date(peticion.fecha_limite), "yyyy-MM-dd") : ""
+
         // Configurar el estado del formulario
         const formDataUpdated = {
           clasificacion: peticion.clasificacion || "",
@@ -173,6 +176,7 @@ export default function EditarPeticionPage({ params }) {
           archivado: peticion.archivado || false,
           peticionEstatus_id: peticion.peticionEstatus_id || "",
           fecha_despacho: formattedFechaDespacho,
+          fecha_limite: formattedFechaLimite,
         }
 
         console.log("Datos del formulario actualizados:", formDataUpdated)
@@ -336,6 +340,7 @@ export default function EditarPeticionPage({ params }) {
         fecha_recibido: formData.fecha_recibido || null,
         fecha_asignacion: formData.fecha_asignacion || null,
         fecha_despacho: formData.fecha_despacho || null,
+        fecha_limite: formData.fecha_limite || null,
         // Eliminamos la referencia a status que no existe
         comentarios: formData.comentarios,
         tramite_despachado: formData.tramite_despachado,
@@ -696,6 +701,17 @@ export default function EditarPeticionPage({ params }) {
                     name="fecha_asignacion"
                     type="date"
                     value={formData.fecha_asignacion}
+                    onChange={handleInputChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="fecha_limite">Fecha Límite</Label>
+                  <Input
+                    id="fecha_limite"
+                    name="fecha_limite"
+                    type="date"
+                    value={formData.fecha_limite}
                     onChange={handleInputChange}
                   />
                 </div>

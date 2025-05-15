@@ -189,6 +189,7 @@ export function DashboardHeader() {
               </span>
             )}
             {pathname === "/dashboard/peticiones" && "Peticiones"}
+            {pathname === "/dashboard/peticiones/nueva" && "Nueva Petición"}
             {pathname === "/dashboard/documentos" && "Documentos del Sistema"}
             {pathname === "/dashboard/comites" && "Comisiones, Senadores y Representantes"}
             {pathname === "/dashboard/temas" && "Temas"}

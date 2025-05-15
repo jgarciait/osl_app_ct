@@ -1,46 +1,80 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { createClientClient } from "@/lib/supabase/client"
 import { AlertCircle, X, Info, AlertTriangle, CheckCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import type { RealtimeChannel } from "@supabase/supabase-js"
 
 export function SystemNotificationBanner() {
   const [notifications, setNotifications] = useState<any[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
+  const channelRef = useRef<RealtimeChannel | null>(null)
   const supabase = createClientClient()
 
-  // Cargar notificaciones activas
+  // Cargar notificaciones y configurar suscripción en tiempo real
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        console.log("Intentando cargar notificaciones...")
-
-        // 1. Obtener todas las notificaciones activas sin filtros complejos
-        const { data, error } = await supabase.from("system_notifications").select("*").eq("is_active", true)
+        const { data, error } = await supabase
+          .from("system_notifications")
+          .select("*")
+          .eq("is_active", true)
+          .order("priority", { ascending: false })
+          .order("created_at", { ascending: false })
 
         if (error) {
           console.error("Error al cargar notificaciones:", error)
           return
         }
 
-        console.log("Notificaciones cargadas:", data)
-
         if (data && data.length > 0) {
           setNotifications(data)
+        } else {
+          setNotifications([])
         }
       } catch (error) {
         console.error("Error en el sistema de notificaciones:", error)
       }
     }
 
+    // Cargar notificaciones iniciales
     fetchNotifications()
 
-    // Actualizar cada 30 segundos
-    const interval = setInterval(fetchNotifications, 30000)
-    return () => clearInterval(interval)
+    // Configurar canal de tiempo real
+    const channel = supabase
+      .channel("system-notifications")
+      .on(
+        "postgres_changes",
+        {
+          event: "*", // Escuchar todos los eventos (INSERT, UPDATE, DELETE)
+          schema: "public",
+          table: "system_notifications",
+        },
+        () => {
+          // Simplemente recargamos todas las notificaciones cuando hay cambios
+          fetchNotifications()
+        },
+      )
+      .subscribe()
+
+    channelRef.current = channel
+
+    // Limpiar suscripción al desmontar
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+      }
+    }
   }, [supabase])
+
+  // Actualizar el índice actual cuando cambia la lista de notificaciones
+  useEffect(() => {
+    if (currentIndex >= notifications.length && notifications.length > 0) {
+      setCurrentIndex(0)
+    }
+  }, [notifications, currentIndex])
 
   // Si no hay notificaciones, no mostrar nada
   if (!notifications.length) {
@@ -48,6 +82,9 @@ export function SystemNotificationBanner() {
   }
 
   const currentNotification = notifications[currentIndex]
+  if (!currentNotification) {
+    return null
+  }
 
   // Función para manejar el cierre de notificaciones
   const handleDismiss = async () => {
@@ -55,7 +92,24 @@ export function SystemNotificationBanner() {
       const { data: session } = await supabase.auth.getSession()
       if (!session.session?.user) return
 
-      // Registrar que el usuario ha visto esta notificación
+      // Verificar si la notificación es descartable
+      if (currentNotification.is_dismissible === false) {
+        // Si no es descartable, solo registrar que se ha visto
+        await supabase.from("user_notification_status").upsert({
+          user_id: session.session.user.id,
+          notification_id: currentNotification.id,
+          is_seen: true,
+          seen_at: new Date().toISOString(),
+        })
+
+        // Pasar a la siguiente notificación si hay más
+        if (notifications.length > 1) {
+          setCurrentIndex((prev) => (prev + 1) % notifications.length)
+        }
+        return
+      }
+
+      // Registrar que el usuario ha visto y descartado esta notificación
       await supabase.from("user_notification_status").upsert({
         user_id: session.session.user.id,
         notification_id: currentNotification.id,
@@ -66,7 +120,7 @@ export function SystemNotificationBanner() {
       })
 
       // Eliminar de la lista local
-      setNotifications((prev) => prev.filter((_, idx) => idx !== currentIndex))
+      setNotifications((prev) => prev.filter((n) => n.id !== currentNotification.id))
       if (currentIndex >= notifications.length - 1) {
         setCurrentIndex(Math.max(0, notifications.length - 2))
       }
